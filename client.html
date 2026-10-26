@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RemotePad — Client</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+
+        :root {
+            --bg: #07080c;
+            --surface: #0e0e14;
+            --surface-2: #12121a;
+            --fg: #f5f5f7;
+            --fg-muted: #8e8e93;
+            --accent: #7ee787;
+            --radius: 20px;
+        }
+
+        body.light {
+            --bg: #f2f2f7;
+            --surface: #ffffff;
+            --surface-2: #e8e8ed;
+            --fg: #1c1c1e;
+            --fg-muted: #8e8e93;
+            --accent: #2b8a3e;
+            --radius: 20px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background: var(--bg);
+            color: var(--fg);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100dvh;
+            padding: 10px 14px 8px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 2px 8px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .hdr-btn {
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            border-radius: 10px;
+            color: var(--fg);
+            font-size: 1.05rem;
+            width: 38px;
+            height: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s, transform 0.05s;
+        }
+
+            .hdr-btn:active {
+                background: #25252c;
+                transform: translateY(1px);
+            }
+
+            .hdr-btn.active {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+
+        body.light .hdr-btn {
+            border-color: #ccc;
+        }
+
+            body.light .hdr-btn:active {
+                background: #d8d8de;
+            }
+
+        .vol-btn {
+            position: relative;
+            touch-action: none;
+        }
+
+        #media-btn {
+            position: relative;
+            touch-action: none;
+        }
+
+        #clip-btn {
+            position: relative;
+            touch-action: none;
+        }
+
+        .header h1 {
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            font-size: 1.05rem;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .latency {
+            font-size: 0.68rem;
+            color: var(--fg-muted);
+            background: rgba(20,20,26,0.55);
+            padding: 2px 8px;
+            border-radius: 99px;
+            border: 1px solid rgba(255,255,255,0.08);
+            letter-spacing: 0.02em;
+            min-width: 48px;
+            text-align: center;
+            backdrop-filter: blur(4px);
+        }
+
+        body.light .latency {
+            background: rgba(255,255,255,0.6);
+            border-color: rgba(0,0,0,0.08);
+        }
+
+        .window-nav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0 2px 2px;
+        }
+
+        .nav-arrow {
+            flex: 0 0 auto;
+            width: 32px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.62rem;
+            color: var(--fg-muted);
+            border-radius: 8px;
+            transition: background 0.15s, transform 0.05s;
+            touch-action: none;
+            user-select: none;
+            cursor: pointer;
+        }
+
+            .nav-arrow:active {
+                background: var(--surface-2);
+                transform: scale(0.92);
+            }
+
+        .window-title {
+            flex: 1 1 auto;
+            font-size: 0.68rem;
+            color: var(--fg-muted);
+            padding: 0 4px 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-height: 16px;
+            text-align: center;
+        }
+
+        .track-status {
+            position: absolute;
+            top: 10px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #status {
+            font-size: 0.72rem;
+            padding: 0;
+            min-height: 0;
+            transition: color 0.2s;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+
+            #status.ok {
+                color: var(--accent);
+            }
+
+            #status.err {
+                color: #ff6b6b;
+            }
+
+            #status .dot {
+                display: inline-block;
+                width: 5px;
+                height: 5px;
+                border-radius: 50%;
+                background: currentColor;
+                margin-right: 5px;
+                vertical-align: middle;
+                opacity: 0.8;
+            }
+
+        body.light #status {
+            text-shadow: none;
+        }
+
+        .action-bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 8px 0 6px;
+        }
+
+            .action-bar .hdr-btn {
+                width: 46px;
+                height: 40px;
+                font-size: 1.2rem;
+            }
+
+        .track-area {
+            flex: 1 1 auto;
+            position: relative;
+            border-radius: var(--radius);
+            background: linear-gradient(170deg, #0f0f14 0%, #06060a 100%);
+            overflow: hidden;
+            border: 1px solid #1a1a22;
+            transition: opacity 0.2s;
+        }
+
+            .track-area.disabled {
+                opacity: 0.35;
+                pointer-events: none;
+            }
+
+        body.light .track-area {
+            background: linear-gradient(170deg, #ffffff 0%, #ececf1 100%);
+            border-color: #d8d8de;
+        }
+
+        .scroll-bar {
+            position: absolute;
+            right: 4px;
+            top: 12px;
+            bottom: 60px;
+            width: 32px;
+            background: transparent;
+            touch-action: none;
+        }
+
+            .scroll-bar::before {
+                content: '';
+                position: absolute;
+                right: 4px;
+                top: 0;
+                bottom: 0;
+                width: 4px;
+                background: #1e1e28;
+                border-radius: 99px;
+            }
+
+        body.light .scroll-bar::before {
+            background: #d8d8de;
+        }
+
+        .scroll-thumb {
+            position: absolute;
+            right: 4px;
+            width: 4px;
+            background: var(--accent);
+            border-radius: 99px;
+            opacity: 0.55;
+            transition: top 0.05s, height 0.05s;
+        }
+
+        .scroll-bar-h {
+            position: absolute;
+            left: 12px;
+            right: 60px;
+            bottom: 4px;
+            height: 32px;
+            background: transparent;
+            touch-action: none;
+        }
+
+            .scroll-bar-h::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 4px;
+                height: 4px;
+                background: #1e1e28;
+                border-radius: 99px;
+            }
+
+        body.light .scroll-bar-h::before {
+            background: #d8d8de;
+        }
+
+        .scroll-thumb-h {
+            position: absolute;
+            top: 4px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 99px;
+            opacity: 0.55;
+            transition: left 0.05s, width 0.05s;
+        }
+
+        .fader {
+            position: fixed;
+            left: 50%;
+            width: 200px;
+            margin-left: -100px;
+            height: 34px;
+            background: rgba(15,15,20,0.85);
+            border: 1px solid #2a2a35;
+            border-radius: 99px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s;
+            z-index: 110;
+            backdrop-filter: blur(6px);
+        }
+
+            .fader.visible {
+                opacity: 1;
+            }
+
+        #sens-fader.visible {
+            pointer-events: auto;
+        }
+
+        body.light .fader {
+            background: rgba(255,255,255,0.88);
+            border-color: #ccc;
+        }
+
+        .fader-track {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            top: 50%;
+            height: 3px;
+            margin-top: -1.5px;
+            background: var(--fg-muted);
+            opacity: 0.45;
+            border-radius: 99px;
+        }
+
+        .fader-center {
+            position: absolute;
+            left: 50%;
+            top: -4px;
+            width: 2px;
+            height: 11px;
+            margin-left: -1px;
+            background: var(--fg-muted);
+            opacity: 0.6;
+            border-radius: 2px;
+        }
+
+        .fader-knob {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 24px;
+            height: 24px;
+            margin: -12px 0 0 -12px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            transform: translateX(0px);
+            transition: transform 0.05s;
+        }
+
+        .preview-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5,5,8,0.93);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .preview-overlay.visible {
+                display: flex;
+            }
+
+            .preview-overlay img {
+                max-width: 96vw;
+                max-height: 92vh;
+                border-radius: 12px;
+                border: 1px solid #2a2a35;
+            }
+
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5,5,8,0.88);
+            z-index: 210;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .confirm-overlay.visible {
+                display: flex;
+            }
+
+        .confirm-box {
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            border-radius: 16px;
+            padding: 22px 26px;
+            text-align: center;
+            max-width: 78vw;
+        }
+
+        #confirm-text {
+            font-size: 1.02rem;
+            margin-bottom: 18px;
+        }
+
+        .confirm-row {
+            display: flex;
+            gap: 12px;
+        }
+
+            .confirm-row button {
+                flex: 1;
+                padding: 12px;
+                border-radius: 12px;
+                border: 1px solid #2a2a35;
+                background: var(--surface);
+                color: var(--fg);
+                font-size: 0.95rem;
+            }
+
+        #confirm-yes {
+            background: var(--accent);
+            color: #0d0d10;
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+
+        .wheel {
+            position: fixed;
+            width: 0;
+            height: 0;
+            z-index: 120;
+        }
+
+        .wheel-item {
+            position: absolute;
+            width: 54px;
+            height: 54px;
+            margin-left: -27px;
+            margin-top: -27px;
+            border-radius: 50%;
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+            transform: scale(0.3);
+            opacity: 0;
+            transition: transform 0.16s ease-out, opacity 0.16s, background 0.12s;
+        }
+
+        .wheel.visible .wheel-item {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .wheel-item.active {
+            background: var(--accent);
+            color: #0d0d10;
+            border-color: var(--accent);
+            transform: scale(1.22);
+        }
+
+        body.light .wheel-item {
+            border-color: #ccc;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+        }
+        /* Pictos SVG monochromes : suivent currentColor (thème + état actif) */
+        .hdr-btn svg, .wheel-item svg, .nav-arrow svg {
+            display: block;
+        }
+
+        .action-bar .hdr-btn svg {
+            width: 23px;
+            height: 23px;
+        }
+
+        .wheel-item svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-arrow svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .wheel-lbl {
+            position: absolute;
+            transform: translateX(-50%);
+            font-size: 0.62rem;
+            color: var(--fg);
+            background: rgba(20,20,26,0.85);
+            padding: 2px 7px;
+            border-radius: 6px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+        }
+
+        .wheel.labels .wheel-lbl {
+            opacity: 1;
+        }
+
+        body.light .wheel-lbl {
+            background: rgba(255,255,255,0.92);
+        }
+
+        .track-area .hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -52%);
+            width: calc(100% - 24px);
+            pointer-events: none;
+            opacity: 0.62;
+            font-size: 0.78rem;
+            color: var(--fg-muted);
+            letter-spacing: 0.06em;
+            text-align: center;
+            line-height: 2.15;
+            transition: opacity 0.3s;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        body.light .track-area .hint {
+            text-shadow: none;
+        }
+
+        .track-area.active .hint {
+            opacity: 0.28;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        .keyboard-area {
+            flex: 0 0 auto;
+            padding: 10px 0 6px;
+            background: var(--bg);
+        }
+
+            .keyboard-area.hidden {
+                display: none;
+            }
+
+        .kb-field {
+            width: 100%;
+            height: 52px;
+            background: var(--surface);
+            color: var(--fg);
+            border: 1px solid #222;
+            border-radius: 14px;
+            padding: 10px 12px;
+            font-size: 1.05rem;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+            .kb-field:focus {
+                border-color: rgba(126,231,135,0.35);
+                box-shadow: 0 0 0 3px rgba(126,231,135,0.1);
+            }
+
+        .kb-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+            .kb-row button {
+                flex: 1;
+                padding: 12px;
+                background: var(--surface-2);
+                border: 1px solid #222;
+                border-radius: 12px;
+                color: var(--fg);
+                font-size: 0.92rem;
+                font-weight: 500;
+                letter-spacing: 0.01em;
+                transition: background 0.15s, transform 0.05s;
+            }
+
+                .kb-row button:active {
+                    background: #25252c;
+                    transform: translateY(1px);
+                }
+    </style>
+</head>
+<body>
+    <div class="app" id="app">
+        <div class="header">
+            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v18</span></h1>
+            <div class="header-controls"></div>
+        </div>
+        <div class="window-nav">
+            <div class="nav-arrow" id="nav-prev" title="Onglet précédent (Ctrl+Maj+Tab)"></div>
+            <div class="window-title" id="window-title"></div>
+            <div class="nav-arrow" id="nav-next" title="Onglet suivant (Ctrl+Tab)"></div>
+        </div>
+        <div class="track-area" id="track-area">
+            <canvas id="trackpad-canvas"></canvas>
+            <div class="track-status"><div id="status"><span class="dot"></span>Déconnecté…</div><div class="latency" id="latency">— ms</div></div>
+            <div class="scroll-bar" id="scroll-bar"><div class="scroll-thumb" id="scroll-thumb"></div></div>
+            <div class="scroll-bar-h" id="scroll-bar-h"><div class="scroll-thumb-h" id="scroll-thumb-h"></div></div>
+            <div class="hint">Glissez pour déplacer le curseur<br><span style="font-size:0.7rem;">Tap = clic gauche · tap-tap-glissez = sélection de texte<br>Appui long (0,75 s) = clic droit · appui long + glissez = déplacer<br>2 doigts : glissez = défilement · tap = clic droit<br>Appui long sur les ancres ci-dessous = roue d'actions<br>Sur le titre = fermer / réouvrir l'onglet · fenêtre précédente</span></div>
+
+        </div>
+        <div class="action-bar">
+            <div class="hdr-btn" id="clip-btn" title="Copier — appui court, appui long = roue des raccourcis"></div>
+            <div class="hdr-btn" id="media-btn" title="Lecture/Pause — appui court, appui long = roue média"></div>
+            <div class="hdr-btn vol-btn" id="vol-btn" title="Volume (glisser = ajuster, double-tap = muet)"></div>
+            <div class="hdr-btn" id="power-btn" title="Menu Démarrer — appui court, appui long = roue extinction"></div>
+            <div class="hdr-btn" id="tool-btn" title="Outils — appui long = roue outils"></div>
+            <div class="hdr-btn" id="kbd-btn" title="Clavier — appui court, appui long = roue édition"></div>
+        </div>
+        <div class="fader" id="vol-fader">
+            <div class="fader-track"></div><div class="fader-center"></div>
+            <div class="fader-knob" id="vol-knob"></div>
+        </div>
+        <div class="fader" id="sens-fader" title="Sensibilité du trackpad (gauche = moins, droite = plus)">
+            <div class="fader-track"></div><div class="fader-center"></div>
+            <div class="fader-knob" id="sens-knob"></div>
+        </div>
+        <div class="preview-overlay" id="preview-overlay"><img id="preview-img" alt="Écran du PC"></div>
+        <div class="confirm-overlay" id="confirm-overlay">
+            <div class="confirm-box">
+                <div id="confirm-text"></div>
+                <div class="confirm-row">
+                    <button id="confirm-no">Annuler</button>
+                    <button id="confirm-yes">Confirmer</button>
+                </div>
+            </div>
+        </div>
+        <div class="keyboard-area hidden">
+            <textarea id="text-input" class="kb-field" placeholder="Tapez un texte..." autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+            <div class="kb-row">
+                <button onclick="sendSpecial(13)">Entrée</button>
+                <button onclick="sendSpecial(8)">⌫</button>
+                <button onclick="sendSpecial(9)">Tab</button>
+                <button onclick="sendText()">Envoyer</button>
+            </div>
+        </div>
+    </div>
+    <script>
+const UPDATE_RATE = 30; // Hz — throttle réseau
+const SENSITIVITY = 1.8;
+const ACCEL_CURVE = [[0,0],[87,1],[173,1],[553,2],[900,3]];
+const TAP_MS = 250;              // fenêtre du tap 2 doigts (clic droit)
+const TAP_MOVE_THRESHOLD = 12;
+const DOUBLE_TAP_MS = 400;      // fenêtre du double-tap / tap-tap-glisser
+const LONG_PRESS_MS = 750;       // au-delà, contact immobile = clic droit / drag
+
+let ws = null; let connected = false;
+let reconnectDelay = 3000;
+let wakeLock = null;
+let pingTimer = null;
+
+const canvas = document.getElementById('trackpad-canvas');
+const ctx = canvas.getContext('2d');
+let lastX = 0, lastY = 0, lastT = 0;
+let moveXSum = 0, moveYSum = 0;
+let flushTimeout = null;
+let touchStartTime = 0;
+let touchMoved = false;
+// Distance cumulée depuis le touchstart (un glisser lent ne fait que 2-5 px
+// par événement : il faut cumuler pour distinguer immobile / mouvement).
+let touchMovedDistance = 0;
+let longPressTimer = null;
+let isLongPress = false;
+let isDragging = false;
+let dragFromTap = false;         // tap-tap-glisser en cours (sélection de texte)
+let dragTapStarted = false;      // bouton gauche enfoncé lors du tap-tap-glisser ?
+let lastTapTime = 0;
+let lastTapX = 0, lastTapY = 0;  // position du tap précédent (condition de proximité du double-tap)
+let lastScrollY = 0;
+let lastScrollX = 0;
+let twoFingerScroll = false;   // évite le saut de curseur 2→1 doigt
+let gestureTouches = 0;
+let twoFingerStartTime = 0;
+let twoFingerDist = 0;
+let scrollDragging = false;
+let scrollAnchorY = 0;
+let scrollImpulse = 0;
+let scrollHDragging = false;
+let scrollHAnchorX = 0;
+let scrollHImpulse = 0;
+// Sens du défilement 2 doigts (retour utilisateur) : bascule persistante
+// dans la roue Outils. Naturel par défaut (doigts vers le bas = contenu bas).
+let scrollInvert = localStorage.getItem('scrollinv') === '1';
+
+function resizeCanvas() {
+          const rect = canvas.getBoundingClientRect();
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('load', resizeCanvas);
+resizeCanvas();
+setTimeout(resizeCanvas, 200);
+setTimeout(resizeCanvas, 500);
+
+// Adapter la hauteur de l'app au clavier virtuel : la zone de saisie + les
+// boutons montent PAR-DESSUS l'interface (fixed, fond OPAQUE) — trackpad et
+// barre d'action ne bougent pas, ne se redimensionnent pas, et rien ne
+// transparaît sous « Entrée / ⌫ / Tab / Envoyer ».
+function adjustToVirtualKeyboard() {
+          const vv = window.visualViewport;
+          if (!vv) return;
+          const kbHeight = window.innerHeight - vv.height - vv.offsetTop;
+          const kbArea = document.querySelector('.keyboard-area');
+          if (kbHeight > 80) {
+            kbArea.style.position = 'fixed';
+            kbArea.style.bottom = kbHeight + 'px';
+            kbArea.style.left = '14px';
+            kbArea.style.right = '14px';
+            kbArea.style.zIndex = '50';
+            kbArea.style.boxShadow = '0 -8px 18px rgba(0,0,0,0.35)';
+          } else {
+            kbArea.style.position = '';
+            kbArea.style.bottom = '';
+            kbArea.style.left = '';
+            kbArea.style.right = '';
+            kbArea.style.zIndex = '';
+            kbArea.style.boxShadow = '';
+          }
+}
+if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', adjustToVirtualKeyboard);
+          window.visualViewport.addEventListener('scroll', adjustToVirtualKeyboard);
+}
+window.addEventListener('resize', adjustToVirtualKeyboard);
+
+function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
+
+function setStatus(msg, ok) {
+          const s = document.getElementById('status');
+          s.innerHTML = '<span class="dot"></span>' + msg;
+          s.className = ok ? 'ok' : 'err';
+          document.getElementById('track-area').classList.toggle('disabled', !connected);
+}
+
+async function requestWakeLock() {
+          try {
+            if ('wakeLock' in navigator) {
+              wakeLock = await navigator.wakeLock.request('screen');
+              wakeLock.addEventListener('release', () => { wakeLock = null; });
+            }
+          } catch (e) { /* non critique */ }
+}
+document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            if (connected) requestWakeLock();
+            if (!ws || ws.readyState > 1) connect();
+          }
+});
+
+function connect() {
+          if (document.hidden) return;
+          if (ws && ws.readyState <= 1) return; // une seule socket à la fois
+          const host = window.location.hostname || 'localhost';
+          const url = 'ws://' + host + ':8765';
+          setStatus('Connexion…', false);
+          try { ws = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
+          ws.onopen = () => { setStatus('Connecté', true); };
+          ws.onmessage = (e) => {
+            const d = e.data;
+            if (d === 'need-code') {
+              // Appairage automatique : le token est dans le hash de l'URL (#CODE)
+              const token = location.hash.slice(1);
+              if (/^\d{4}$/.test(token)) {
+                ws.send('join:' + token + ':v18');
+              } else {
+                setStatus('Ouvrez RemotePad via le QR code affiché sur le PC', false);
+              }
+            } else if (d === 'ok') {
+              connected = true;
+              document.getElementById('track-area').classList.add('active');
+              setStatus('Appairé — prêt', true);
+              reconnectDelay = 3000; // reset du backoff
+              requestWakeLock();
+              startPing();
+            } else if (d === 'error') {
+              setStatus('Code refusé — rescannez le QR code', false);
+            } else if (d === 'banned') {
+              setStatus('Trop de tentatives — réessayez dans 30 s', false);
+            } else if (d.slice(0, 1) === 'i') {
+              // Aperçu écran : JPEG base64 → overlay plein écran (tap pour fermer).
+              // 'i!' = échec serveur → jamais d'échec silencieux.
+              if (d === 'i!') { setStatus('Aperçu indisponible — voir la console du PC', false); vibrate([40, 40, 40]); }
+              else showPreview(d.slice(1));
+            } else if (d.slice(0, 1) === 'w') {
+              document.getElementById('window-title').textContent = d.slice(1);
+            } else if (d === 'pong') {
+              const rtt = Math.round(performance.now() - lastPingSent);
+              const prev = parseInt(document.getElementById('latency').textContent) || 0;
+              if (Math.abs(rtt - prev) > 20 || prev === 0) {
+                document.getElementById('latency').textContent = rtt + ' ms';
+              }
+            }
+          };
+          ws.onclose = () => {
+            connected = false;
+            stopPing();
+            if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
+            document.getElementById('track-area').classList.remove('active');
+            setStatus('Déconnecté — reconnexion…', false);
+            scheduleReconnect();
+          };
+          ws.onerror = () => { setStatus('Erreur WebSocket', false); };
+}
+function scheduleReconnect() {
+          setTimeout(() => { if (!connected) connect(); }, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 1.7, 30000); // plafond 30 s
+}
+connect();
+
+// Latence : ping toutes les 5 s
+let lastPingSent = 0;
+function startPing() {
+          stopPing();
+          pingTimer = setInterval(() => {
+            if (connected && ws && ws.readyState === 1) { lastPingSent = performance.now(); ws.send('ping'); }
+          }, 5000);
+}
+function stopPing() { if (pingTimer) { clearInterval(pingTimer); pingTimer = null; } }
+
+function drawTrail(x, y) {
+          ctx.fillStyle = 'rgba(126,231,135,0.18)';
+          ctx.beginPath(); ctx.arc(x, y, 10 + Math.random()*8, 0, Math.PI*2); ctx.fill();
+          setTimeout(() => { ctx.clearRect(0,0,canvas.width,canvas.height); }, 180);
+}
+function getTouch(e) {
+          const t = e.touches[0];
+          const rect = canvas.getBoundingClientRect();
+          return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+}
+function accelMult(speed) {
+          for (let i = 1; i < ACCEL_CURVE.length; i++) {
+            if (speed <= ACCEL_CURVE[i][0]) {
+              const [x0, y0] = ACCEL_CURVE[i-1];
+              const [x1, y1] = ACCEL_CURVE[i];
+              return y0 + (y1 - y0) * (speed - x0) / (x1 - x0);
+            }
+          }
+          return ACCEL_CURVE[ACCEL_CURVE.length - 1][1];
+}
+function scheduleFlush() {
+          if (flushTimeout) return;
+          flushTimeout = setTimeout(flushMove, 1000 / UPDATE_RATE);
+}
+function flushMove() {
+          flushTimeout = null;
+          const xInt = Math.trunc(moveXSum);
+          const yInt = Math.trunc(moveYSum);
+          if ((xInt !== 0 || yInt !== 0) && connected) {
+            ws.send(`m${xInt};${yInt}`);
+            moveXSum -= xInt;
+            moveYSum -= yInt;
+            scheduleFlush();
+          }
+}
+function pointerMove(dx, dy) {
+          moveXSum += dx * SENSITIVITY * sensFactor;
+          moveYSum += dy * SENSITIVITY * sensFactor;
+          scheduleFlush();
+}
+
+canvas.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          if (activeAnchor) activeAnchor.forceClose();   // doigt posé sur le trackpad → la roue disparaît
+          gestureTouches = e.touches.length;
+          if (e.touches.length === 2) {
+            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            isLongPress = false; isDragging = false;
+            touchMoved = true;
+            twoFingerScroll = true;
+            twoFingerStartTime = performance.now();
+            twoFingerDist = 0;
+            const p1 = getTouch({touches: [e.touches[0]]});
+            const p2 = getTouch({touches: [e.touches[1]]});
+            lastScrollY = (p1.y + p2.y) / 2;
+            lastScrollX = (p1.x + p2.x) / 2;
+            return;
+          }
+          const p = getTouch(e);
+          lastX = p.x; lastY = p.y;
+          lastT = performance.now();
+          moveXSum = 0; moveYSum = 0;
+          touchStartTime = performance.now();
+          touchMoved = false;
+          touchMovedDistance = 0;
+          isLongPress = false;
+          isDragging = false;
+          twoFingerScroll = false;
+          // Tap-tap-glissez (sélection de texte) : 2e tap d'un double-tap.
+          // Condition de PROXIMITÉ : deux taps ne forment un double-tap que s'ils
+          // sont proches (< 50 px) — deux taps rapprochés dans le temps mais à des
+          // endroits différents restent deux clics de positionnement distincts.
+          const nearLastTap = Math.hypot(p.x - lastTapX, p.y - lastTapY) < 50;
+          if (performance.now() - lastTapTime < DOUBLE_TAP_MS && nearLastTap) {
+            lastTapTime = 0;
+            dragFromTap = true;
+            dragTapStarted = false;
+            return;
+          }
+          dragFromTap = false;
+          dragTapStarted = false;
+          longPressTimer = setTimeout(() => {
+            if (touchMoved || touchMovedDistance >= 8) return;
+            isLongPress = true;
+            vibrate(15);
+            if (connected) ws.send('b0;1');   // bouton gauche enfoncé : drag OU clic droit
+          }, LONG_PRESS_MS);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!connected) return;
+          if (e.touches.length === 2) {
+            // Scroll 2 doigts proportionnel, vertical ET horizontal
+            const p1 = getTouch({touches: [e.touches[0]]});
+            const p2 = getTouch({touches: [e.touches[1]]});
+            const midY = (p1.y + p2.y) / 2;
+            const midX = (p1.x + p2.x) / 2;
+            const deltaY = midY - lastScrollY;
+            const deltaX = midX - lastScrollX;
+            twoFingerDist += Math.abs(deltaY) + Math.abs(deltaX);
+            const inv = scrollInvert ? -1 : 1;   // inversion éventuelle du sens (roue ⚙)
+            if (Math.abs(deltaY) > 3) {
+              const steps = Math.max(-5, Math.min(5, Math.round(deltaY / 6))) * inv;
+              if (steps !== 0) ws.send(`s${steps}`);
+              lastScrollY = midY;
+            }
+            if (Math.abs(deltaX) > 3) {
+              const steps = Math.max(-5, Math.min(5, Math.round(deltaX / 6))) * inv;
+              if (steps !== 0) ws.send(`h${steps}`);
+              lastScrollX = midX;
+            }
+            return;
+          }
+          const p = getTouch(e);
+          // Correctif saut de curseur : après un scroll 2 doigts, réinitialiser la référence
+          if (twoFingerScroll) {
+            twoFingerScroll = false;
+            lastX = p.x; lastY = p.y; lastT = performance.now();
+            touchMoved = true;
+            return;
+          }
+          const dx = p.x - lastX;
+          const dy = p.y - lastY;
+          const dist = Math.hypot(dx, dy);
+          touchMovedDistance += dist;
+          if (touchMovedDistance > TAP_MOVE_THRESHOLD) touchMoved = true;
+          if (isLongPress && touchMovedDistance > 8) isDragging = true;  // appui long + mouvement = drag
+          if (dragFromTap && !dragTapStarted && touchMovedDistance > 4) {
+            dragTapStarted = true;          // le 2e tap bouge : le drag démarre ici
+            isDragging = true;
+            vibrate(10);
+            if (connected) ws.send('b0;1');
+          }
+          // Pendant le tap-tap-glisser, le curseur reste à l'ancre tant que le bouton
+          // n'est pas enfoncé ; ensuite le curseur bouge AUSSI pendant le drag
+          // (sinon rien n'est jamais déplacé ni sélectionné).
+          const anchoring = dragFromTap && !dragTapStarted;
+          if (!anchoring) {
+            const now = performance.now();
+            const dt = Math.max(now - lastT, 1);
+            const speed = dist / dt * 1000;
+            pointerMove(dx * accelMult(speed), dy * accelMult(speed));
+            lastT = now;
+            drawTrail(p.x, p.y);
+          }
+          lastX = p.x; lastY = p.y;
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          if (flushTimeout) { clearTimeout(flushTimeout); flushTimeout = null; }
+          flushMove();
+          const now = performance.now();
+          const remaining = e.touches.length;
+
+          // --- Geste 2 doigts terminé : tap 2 doigts = clic droit ---
+          if (gestureTouches === 2 && remaining === 0) {
+            twoFingerScroll = false;
+            const twoFingerTap = twoFingerDist <= TAP_MOVE_THRESHOLD
+                               && (now - twoFingerStartTime) < TAP_MS;
+            twoFingerDist = 0;
+            gestureTouches = 0;
+            if (connected && twoFingerTap) {
+              vibrate(15);
+              ws.send('b2;1'); ws.send('b2;0');
+            }
+            return;
+          }
+
+          gestureTouches = remaining;
+          const wasLongPress = isLongPress;
+          const wasDragging = isDragging;
+          const wasDragFromTap = dragFromTap;
+          const tapDragStarted = dragTapStarted;
+          isLongPress = false;
+          isDragging = false;
+          dragFromTap = false;
+          dragTapStarted = false;
+          twoFingerScroll = false;
+          if (!connected) return;
+          if (wasDragging) {
+            ws.send('b0;0');                    // fin de drag (appui long OU tap-tap-glissé)
+          } else if (wasDragFromTap && !tapDragStarted) {
+            // Tap-tap (ou tap-tap-tap) relevé sans bouger : UN clic réel par tap.
+            // Le système CUMULE les clics : 2 = double-clic (mot), 3 = triple-clic
+            // (paragraphe). L'ancien b0;2 surajoutait DEUX clics au clic du premier
+            // tap — un simple tap-tap sélectionnait donc tout le paragraphe.
+            ws.send('b0;1'); ws.send('b0;0');
+            lastTapTime = now;
+            lastTapX = lastX; lastTapY = lastY;
+            vibrate(25);
+          } else if (wasLongPress) {
+            ws.send('b0;0');                     // relâche le gauche enfoncé à LONG_PRESS_MS
+            ws.send('b2;1'); ws.send('b2;0');    // clic droit atomique
+          } else if (touchMoved) {
+            // mouvement simple : rien à relâcher
+          } else {
+            // Tap simple : UN clic réel — les doubles/triples clics naissent du
+            // cumul des taps, c'est le système qui interprète (mot, paragraphe).
+            ws.send('b0;1'); ws.send('b0;0');
+            lastTapTime = now;
+            lastTapX = lastX; lastTapY = lastY;
+            vibrate(10);
+          }
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', (e) => {
+          e.preventDefault();
+          if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          if (flushTimeout) { clearTimeout(flushTimeout); flushTimeout = null; }
+          flushMove();
+          isLongPress = false;
+          isDragging = false;
+          dragFromTap = false;
+          dragTapStarted = false;
+          twoFingerScroll = false;
+          gestureTouches = 0;
+          twoFingerDist = 0;
+          if (connected) ws.send('b0;0');        // libération inconditionnelle
+}, { passive: false });
+
+// --- Barres de scroll (verticale à droite, horizontale en bas) ---
+// NB : déclarer les DEUX thumbs avant le premier appel à updateScrollGauge().
+const scrollBar = document.getElementById('scroll-bar');
+const scrollThumb = document.getElementById('scroll-thumb');
+const scrollBarH = document.getElementById('scroll-bar-h');
+const scrollThumbH = document.getElementById('scroll-thumb-h');
+
+scrollBar.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          scrollDragging = true;
+          scrollAnchorY = e.touches[0].clientY;
+          scrollImpulse = 0;
+          updateScrollGauge();
+}, { passive: false });
+scrollBar.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!scrollDragging) return;
+          const y = e.touches[0].clientY;
+          const dy = y - scrollAnchorY;
+          scrollImpulse = Math.max(-100, Math.min(100, scrollImpulse + dy * 3));
+          updateScrollGauge();
+          if (Math.abs(dy) > 5 && connected) {
+            ws.send(`s${dy > 0 ? 2 : -2}`);
+            scrollAnchorY = y;
+          }
+}, { passive: false });
+scrollBar.addEventListener('touchend', () => {
+          scrollDragging = false;
+          const decay = setInterval(() => {
+            scrollImpulse *= 0.85;
+            if (Math.abs(scrollImpulse) < 2) { scrollImpulse = 0; clearInterval(decay); }
+            updateScrollGauge();
+          }, 50);
+});
+
+scrollBarH.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          scrollHDragging = true;
+          scrollHAnchorX = e.touches[0].clientX;
+          scrollHImpulse = 0;
+          updateScrollGauge();
+}, { passive: false });
+scrollBarH.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!scrollHDragging) return;
+          const x = e.touches[0].clientX;
+          const dx = x - scrollHAnchorX;
+          scrollHImpulse = Math.max(-100, Math.min(100, scrollHImpulse + dx * 3));
+          updateScrollGauge();
+          if (Math.abs(dx) > 5 && connected) {
+            ws.send(`h${dx > 0 ? 2 : -2}`);
+            scrollHAnchorX = x;
+          }
+}, { passive: false });
+scrollBarH.addEventListener('touchend', () => {
+          scrollHDragging = false;
+          const decay = setInterval(() => {
+            scrollHImpulse *= 0.85;
+            if (Math.abs(scrollHImpulse) < 2) { scrollHImpulse = 0; clearInterval(decay); }
+            updateScrollGauge();
+          }, 50);
+});
+
+function updateScrollGauge() {
+          const pct = Math.abs(scrollImpulse);
+          if (scrollImpulse >= 0) {
+            scrollThumb.style.top = (50 - pct / 2) + '%';
+            scrollThumb.style.height = pct / 2 + '%';
+          } else {
+            scrollThumb.style.top = '50%';
+            scrollThumb.style.height = pct / 2 + '%';
+          }
+          const hpct = Math.abs(scrollHImpulse);
+          if (scrollHImpulse >= 0) {
+            scrollThumbH.style.left = (50 - hpct / 2) + '%';
+            scrollThumbH.style.width = hpct / 2 + '%';
+          } else {
+            scrollThumbH.style.left = '50%';
+            scrollThumbH.style.width = hpct / 2 + '%';
+          }
+}
+updateScrollGauge();
+
+// --- Clavier ---
+function sendText() {
+          const input = document.getElementById('text-input');
+          if (!input.value) return;
+          if (!connected) { setStatus('Non connecté — texte conservé', false); return; }
+          ws.send('t' + input.value);
+          input.value = '';
+          input.focus();
+}
+function sendSpecial(vk) {
+          if (connected) ws.send('k' + vk);
+}
+function toggleKeyboard() {
+          const area = document.querySelector('.keyboard-area');
+          area.classList.toggle('hidden');
+          // état visible sur le picto ⌨ de la barre d'action
+          document.getElementById('kbd-btn').classList.toggle('active', !area.classList.contains('hidden'));
+}
+
+// --- Volume : fader horizontal (gauche = baisser, droite = augmenter) ---
+const volBtn = document.getElementById('vol-btn');
+const volFader = document.getElementById('vol-fader');
+const volKnob = document.getElementById('vol-knob');
+let volActive = false;
+let volLastX = 0;
+let volImpulse = 0;
+let volAccum = 0;
+let lastVolTap = 0;
+let volDecayTimer = null;
+
+function placeFader(faderEl, anchorEl) {
+          faderEl.style.bottom = (window.innerHeight - anchorEl.getBoundingClientRect().top + 12) + 'px';
+}
+
+function volKnobUpdate() {
+          volKnob.style.transform = 'translateX(' + (Math.max(-100, Math.min(100, volImpulse)) * 0.7) + 'px)';
+}
+
+volBtn.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          volActive = true;
+          volLastX = e.touches[0].clientX;
+          volImpulse = 0;
+          volAccum = 0;
+          if (volDecayTimer) { clearInterval(volDecayTimer); volDecayTimer = null; }
+          placeFader(volFader, volBtn);
+          volKnobUpdate();
+          volFader.classList.add('visible');
+          const now = performance.now();
+          if (now - lastVolTap < 300) {
+            if (connected) ws.send('v0');
+            vibrate(20);
+          }
+          lastVolTap = now;
+}, { passive: false });
+
+volBtn.addEventListener('touchmove', (e) => {
+          e.stopPropagation();
+          if (!volActive) return;
+          const x = e.touches[0].clientX;
+          const dx = x - volLastX;
+          volLastX = x;
+          volImpulse = Math.max(-100, Math.min(100, volImpulse + dx));
+          volAccum += dx;
+          while (Math.abs(volAccum) >= 12) {   // 12 px de glissé = 1 cran de volume
+            const dir = volAccum > 0 ? 1 : -1;
+            if (connected) ws.send(dir > 0 ? 'v1' : 'v-1');
+            volAccum -= dir * 12;
+            vibrate(8);
+          }
+          volKnobUpdate();
+}, { passive: false });
+
+volBtn.addEventListener('touchend', () => {
+          volActive = false;
+          volDecayTimer = setInterval(() => {
+            volImpulse *= 0.8;
+            if (Math.abs(volImpulse) < 2) {
+              volImpulse = 0;
+              clearInterval(volDecayTimer); volDecayTimer = null;
+              volFader.classList.remove('visible');
+            }
+            volKnobUpdate();
+          }, 40);
+});
+
+// ============================================================
+// Pictos — SVG inline monochromes, DA homogène : trait 1.7, bouts
+// ronds, currentColor (suit le thème et l'état actif). Aucune
+// dépendance à une police : plus jamais de symbole rendu en carré
+// (⏻) ni d'emoji coloré (📋 🔊) qui casse le noir et blanc.
+// ============================================================
+const _ic = (inner) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+const ICONS = {
+          copy:      _ic('<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15h-.5A2.5 2.5 0 0 1 2 12.5v-8A2.5 2.5 0 0 1 4.5 2h8A2.5 2.5 0 0 1 15 4.5V5"/>'),
+          cut:       _ic('<circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M8.1 7.7 20 19M8.1 16.3 20 5"/>'),
+          paste:     _ic('<path d="M15.8 4.5h2A2.5 2.5 0 0 1 20.5 7v12a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 19V7a2.5 2.5 0 0 1 2.5-2.5h2.2"/><rect x="8.5" y="2.5" width="7" height="4" rx="1.2"/><path d="M8.5 12.5h7M8.5 16h4.5"/>'),
+          pastefull: _ic('<path d="M15.8 4.5h2A2.5 2.5 0 0 1 20.5 7v12a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 19V7a2.5 2.5 0 0 1 2.5-2.5h2.2"/><rect x="8.5" y="2.5" width="7" height="4" rx="1.2"/><path d="M8.7 13.1l2.4 2.4 4.3-4.7"/>'),
+          playpause: _ic('<path d="M4 5.5 14 12 4 18.5Z"/><path d="M17 5.5v13M20.5 5.5v13"/>'),
+          volume:    _ic('<path d="M11 5.5 6.5 9H3.5v6h3l4.5 3.5Z"/><path d="M14.6 9.3a4 4 0 0 1 0 5.4M17.2 6.8a7.6 7.6 0 0 1 0 10.4"/>'),
+          mute:      _ic('<path d="M11 5.5 6.5 9H3.5v6h3l4.5 3.5Z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>'),
+          prev:      _ic('<path d="M18.5 4.5 9 12l9.5 7.5Z"/><path d="M5.5 4.5v15"/>'),
+          next:      _ic('<path d="M5.5 4.5 15 12l-9.5 7.5Z"/><path d="M18.5 4.5v15"/>'),
+          keyboard:  _ic('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M9.7 10h.01M13.4 10h.01M17.1 10h.01M6 14h.01M9.7 14h.01M16.4 14h.01M12 14h3"/>'),
+          tools:     _ic('<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/>'),
+          winmenu:   _ic('<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.5"/>'),
+          power:     _ic('<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2.5V12"/>'),
+          reboot:    _ic('<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/><path d="M23 4v6h-6"/>'),
+          sleep:     _ic('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+          undo:      _ic('<path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>'),
+          redo:      _ic('<path d="M15 14l5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/>'),
+          all:       _ic('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 12.2l2.8 2.8 5.2-5.5"/>'),
+          alttab:    _ic('<path d="M20 7H5"/><path d="M8.5 3.5 5 7l3.5 3.5"/><path d="M4 17h15"/><path d="M15.5 13.5 19 17l-3.5 3.5"/>'),
+          theme:     _ic('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5A8.5 8.5 0 0 1 12 20.5Z" fill="currentColor" stroke="none"/>'),
+          sens:      _ic('<path d="M3.5 12h17"/><circle cx="9.5" cy="12" r="2.4"/>'),
+          scroll:    _ic('<path d="M8 4.5v14"/><path d="M4.8 15.3 8 18.5l3.2-3.2"/><path d="M16 19.5v-14"/><path d="M12.8 8.7 16 5.5l3.2 3.2"/>'),
+          view:      _ic('<path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'),
+          closetab:  _ic('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+          reopen:    _ic('<path d="M2.5 4v6h6"/><path d="M4.4 15a9 9 0 1 0 2.1-9.4L2.5 10"/>'),
+          chevL:     _ic('<path d="M14.5 5 8 12l6.5 7"/>'),
+          chevR:     _ic('<path d="M9.5 5 16 12l-6.5 7"/>'),
+};
+
+// ============================================================
+// Ancres & roues — le langage d'interaction unique du header :
+// appui court = action prédite · appui long (380 ms) = éventail
+// radial · glisser vers un picto (sans lever le doigt) = choisir ·
+// relâcher = exécuter (ou annuler si hors de la roue).
+// La roue n'existe QUE pendant l'appui : poser le doigt sur le
+// trackpad la fait aussi disparaître.
+// ============================================================
+const WHEEL_OPEN_MS = 380;
+let activeAnchor = null;   // roue ouverte → forceClose() appelable depuis le trackpad
+
+function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
+          const o = opts || {};
+          const btn = document.getElementById(btnId);
+          let timer = null, labelTimer = null, wheel = null, items = null, pos = null, activeIdx = -1, picked = null, origin = { x: 0, y: 0 };
+
+          const reset = () => {
+            if (timer) clearTimeout(timer);
+            if (labelTimer) clearTimeout(labelTimer);
+            timer = null; labelTimer = null; wheel = null; items = null; pos = null; activeIdx = -1; picked = null; activeAnchor = null;
+          };
+          const forceClose = () => { if (wheel) wheel.remove(); reset(); };
+
+          btn.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            reset();
+            timer = setTimeout(() => {
+              timer = null;
+              items = getItems();
+              const r = btn.getBoundingClientRect();
+              const n = items.length;
+              const cx0 = r.left + r.width / 2, cy0 = r.top + r.height / 2;
+              const R = 92 + n * 6;   // rayon HAUT : l'arc ne recouvre jamais les ancres voisines de la barre d'action
+              // Étendue de l'arc : demi-cercle resserré autour de la verticale — les
+              // pictos des bouts ne retombent jamais sur les ancres voisines ; si
+              // 2 pictos, groupe sur la moitié INTÉRIEURE (côté centre de l'écran),
+              // angles écartés pour qu'ils ne se chevauchent pas.
+              let a0 = 35, a1 = 145;
+              if (n === 2) {
+                if (o.spread2) { a0 = 152; a1 = 28; }   // ancre titre : les 2 pictos de part et d'autre du centre
+                else if (cx0 < window.innerWidth / 2) { a0 = 80; a1 = 30; }
+                else { a0 = 100; a1 = 150; }
+              }
+              wheel = document.createElement('div');
+              wheel.className = 'wheel';
+              pos = items.map((it, i) => {
+                const frac = (n === 1) ? 0.5 : i / (n - 1);
+                const a = ((a0 + (a1 - a0) * frac) * Math.PI) / 180;
+                const x = Math.cos(a) * R, y = (o.down ? Math.sin(a) : -Math.sin(a)) * R;   // arc vers le HAUT (ancres en bas d'écran) ou le BAS (ancre titre, en haut)
+                const b = document.createElement('div');
+                b.className = 'wheel-item';
+                b.innerHTML = it.icon;   // picto SVG monochrome homogène
+                b.style.left = x + 'px';
+                b.style.top = y + 'px';
+                wheel.appendChild(b);
+                if (it.label) {   // libellé d'accessibilité (affiché après ~2 s d'appui)
+                  const l = document.createElement('div');
+                  l.className = 'wheel-lbl';
+                  l.textContent = it.label;
+                  l.style.left = x + 'px';
+                  l.style.top = (y + 32) + 'px';
+                  wheel.appendChild(l);
+                }
+                return { x, y, el: b };
+              });
+              // Borne l'arc à l'écran : jamais de picto coupé à gauche ni à droite
+              let minX = Infinity, maxX = -Infinity;
+              pos.forEach(p => { minX = Math.min(minX, p.x - 45); maxX = Math.max(maxX, p.x + 45); });
+              let shift = 0;
+              if (cx0 + minX < 10) shift = 10 - (cx0 + minX);
+              if (cx0 + maxX + shift > window.innerWidth - 10) shift = window.innerWidth - 10 - (cx0 + maxX);
+              origin = { x: cx0 + shift, y: cy0 };
+              wheel.style.left = origin.x + 'px';
+              wheel.style.top = origin.y + 'px';
+              document.body.appendChild(wheel);
+              void wheel.offsetWidth;   // reflow → animation d'entrée des pictos
+              wheel.classList.add('visible');
+              labelTimer = setTimeout(() => {
+                if (wheel) wheel.classList.add('labels');   // appui maintenu ~2 s = libellés
+              }, 2000);
+              activeAnchor = { forceClose };
+              vibrate(12);
+            }, WHEEL_OPEN_MS);
+          }, { passive: false });
+
+          btn.addEventListener('touchmove', (e) => {
+            e.stopPropagation();
+            if (wheel) {
+              e.preventDefault();
+              const t = e.touches[0];
+              const fx = t.clientX - origin.x;
+              const fy = t.clientY - origin.y;
+              let best = -1, bestD = 1e9;
+              pos.forEach((p, i) => { const d = Math.hypot(p.x - fx, p.y - fy); if (d < bestD) { bestD = d; best = i; } });
+              if (best >= 0 && bestD < 60 && activeIdx !== best) {          // secteur survolé
+                activeIdx = best;
+                picked = items[best];
+                pos.forEach((p, i) => p.el.classList.toggle('active', i === best));
+                vibrate(8);                                                // tick haptique
+              } else if ((best < 0 || bestD >= 60) && activeIdx !== -1) {   // sortie de roue
+                activeIdx = -1;
+                picked = null;
+                pos.forEach(p => p.el.classList.remove('active'));
+              }
+            } else if (timer) {   // le doigt bouge avant l'ouverture → annulé (c'était un glisser)
+              clearTimeout(timer);
+              reset();
+            }
+          }, { passive: false });
+
+          btn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+            if (wheel) {
+              if (picked) { onPick(picked.id); vibrate(18); }
+              forceClose();
+            } else if (timer) {   // appui court = action prédite par l'ancre
+              clearTimeout(timer);
+              reset();
+              onShort();
+            }
+          }, { passive: false });
+
+          btn.addEventListener('touchcancel', forceClose, { passive: false });
+}
+
+// --- Ancre presse-papiers : picto copie par défaut, presse-papiers coché après copier/couper ---
+let clipHasContent = false;
+
+function setClipAnchor(has) {
+          clipHasContent = has;
+          document.getElementById('clip-btn').innerHTML = has ? ICONS.pastefull : ICONS.copy;
+}
+
+function clipPick(id) {
+          if (!connected) return;
+          ws.send('c' + id);
+          if (id === 'copy' || id === 'cut') setClipAnchor(true);   // logique presse-papiers :
+          else if (id === 'paste') setClipAnchor(false);           // après un coller, on recopie
+}
+
+makeWheelAnchor('clip-btn',
+          () => {
+            // Groupe presse-papiers uniquement (annuler/rétablir/tout sélectionner
+            // sont dans la roue ⌨, le thème dans la roue ⚙). L'action portée
+            // par l'ancre n'est PAS dupliquée dans l'arc.
+            const base = [
+              { id: 'copy',  icon: ICONS.copy,  label: 'Copier' },
+              { id: 'cut',   icon: ICONS.cut,   label: 'Couper' },
+              { id: 'paste', icon: ICONS.paste, label: 'Coller' },
+            ];
+            return base.filter(it => it.id !== (clipHasContent ? 'paste' : 'copy'));
+          },
+          clipPick,
+          () => {   // appui court = action prédite par l'ancre (coller si presse-papiers plein)
+            if (!connected) return;
+            if (clipHasContent) { ws.send('cpaste'); setClipAnchor(false); vibrate(15); }
+            else { ws.send('ccopy'); setClipAnchor(true); vibrate(15); }   // copier → l'ancre devient Coller
+          }
+);
+
+// --- Ancre média : appui court = play/pause, appui long = roue ---
+// L'ancre EST play/pause : pas de doublon dans l'arc.
+makeWheelAnchor('media-btn',
+          () => [
+            { id: 'mute', icon: ICONS.mute, label: 'Muet' },
+            { id: 'prev', icon: ICONS.prev, label: 'Piste précédente' },
+            { id: 'next', icon: ICONS.next, label: 'Piste suivante' },
+          ],
+          (id) => { if (connected) { ws.send({ mute: 'v0', prev: 'r', next: 'n' }[id]); vibrate(15); } },
+          () => { if (connected) { ws.send('p'); vibrate(10); } }
+);
+
+// --- Ancre clavier : appui court = afficher/masquer, appui long = roue édition ---
+// Raccourcis d'édition uniquement (⇄ Alt+Tab vit dans l'arc onglets du titre).
+makeWheelAnchor('kbd-btn',
+          () => [
+            { id: 'undo',   icon: ICONS.undo,   label: 'Annuler (Ctrl+Z)' },
+            { id: 'redo',   icon: ICONS.redo,   label: 'Rétablir (Ctrl+Y)' },
+            { id: 'all',    icon: ICONS.all,    label: 'Tout sélectionner (Ctrl+A)' },
+          ],
+          (id) => { if (connected) { ws.send('c' + id); vibrate(15); } },
+          () => { toggleKeyboard(); vibrate(10); }
+);
+
+// --- Sensibilité du trackpad : fader persistant (localStorage) ---
+const SENS_MIN = 0.4, SENS_MAX = 1.8;
+let sensFactor = Math.max(SENS_MIN, Math.min(SENS_MAX, parseFloat(localStorage.getItem('sens') || '1') || 1));
+let sensPos = ((sensFactor - 1) / 0.7) * 100;
+const sensFader = document.getElementById('sens-fader');
+const sensKnob = document.getElementById('sens-knob');
+let sensHideTimer = null, sensActive = false;
+
+function sensKnobUpdate() {
+          sensKnob.style.transform = 'translateX(' + (sensPos * 0.7) + 'px)';
+}
+
+function openSensFader() {
+          placeFader(sensFader, document.getElementById('tool-btn'));
+          sensKnobUpdate();
+          sensFader.classList.add('visible');
+          if (sensHideTimer) { clearTimeout(sensHideTimer); sensHideTimer = null; }
+}
+
+sensFader.addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (sensHideTimer) { clearTimeout(sensHideTimer); sensHideTimer = null; }
+          sensActive = true;
+          sensFader.dataset.lastX = e.touches[0].clientX;
+}, { passive: false });
+
+sensFader.addEventListener('touchmove', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (!sensActive) return;
+          const x = e.touches[0].clientX;
+          const dx = x - parseFloat(sensFader.dataset.lastX);
+          sensFader.dataset.lastX = x;
+          sensPos = Math.max(-100, Math.min(100, sensPos + dx));
+          sensFactor = Math.max(SENS_MIN, Math.min(SENS_MAX, 1 + (sensPos / 100) * 0.7));
+          localStorage.setItem('sens', sensFactor.toFixed(2));
+          sensKnobUpdate();
+}, { passive: false });
+
+sensFader.addEventListener('touchend', () => {
+          sensActive = false;
+          sensHideTimer = setTimeout(() => sensFader.classList.remove('visible'), 2500);
+}, { passive: false });
+
+// --- Ancre outils : roue des réglages ---
+function toolPick(id) {
+          if (id === 'theme') { toggleTheme(); return; }            // action locale
+          if (id === 'sens') { openSensFader(); return; }           // réglage local
+          if (id === 'scroll') {                                    // inversion du défilement 2 doigts (persistante)
+            scrollInvert = !scrollInvert;
+            localStorage.setItem('scrollinv', scrollInvert ? '1' : '0');
+            vibrate(15);
+            return;
+          }
+          if (connected && id === 'view') ws.send('g');
+}
+
+makeWheelAnchor('tool-btn',
+          () => [
+            { id: 'theme',  icon: ICONS.theme,  label: 'Thème clair/sombre' },
+            { id: 'sens',   icon: ICONS.sens,   label: 'Sensibilité du trackpad' },
+            { id: 'scroll', icon: ICONS.scroll, label: scrollInvert ? 'Défilement inversé — toucher pour rétablir' : 'Inverser le défilement (2 doigts)' },
+            { id: 'view',   icon: ICONS.view,   label: 'Aperçu de l\u2019écran du PC' },
+          ],
+          toolPick,
+          () => {}   // pas d'action courte : la roue est le seul accès (sobre)
+);
+
+// --- Ancre extinction : appui court = Menu Démarrer, roue = éteindre/redémarrer/veille ---
+// Confirmation obligatoire : jamais d'extinction par misclic.
+const confirmOverlay = document.getElementById('confirm-overlay');
+let confirmAction = null;
+
+function askConfirm(label, action) {
+          document.getElementById('confirm-text').textContent = label;
+          confirmAction = action;
+          confirmOverlay.classList.add('visible');
+}
+document.getElementById('confirm-no').addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          confirmOverlay.classList.remove('visible');
+          confirmAction = null;
+}, { passive: false });
+document.getElementById('confirm-yes').addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          confirmOverlay.classList.remove('visible');
+          if (confirmAction) { confirmAction(); confirmAction = null; }
+}, { passive: false });
+
+makeWheelAnchor('power-btn',
+          () => [
+            { id: 'off',    icon: ICONS.power,  label: 'Éteindre' },
+            { id: 'reboot', icon: ICONS.reboot, label: 'Redémarrer' },
+            { id: 'sleep',  icon: ICONS.sleep,  label: 'Mode veille' },
+          ],
+          (id) => {
+            const labels = { off: 'Éteindre le PC ?', reboot: 'Redémarrer le PC ?', sleep: 'Mettre le PC en veille ?' };
+            askConfirm(labels[id], () => { if (connected) { ws.send('x' + id); vibrate(20); } });
+          },
+          () => { if (connected) { ws.send('cwinkey'); vibrate(10); } }
+);
+
+// --- Aperçu de l'écran du PC (tap n'importe où pour fermer) ---
+const previewOverlay = document.getElementById('preview-overlay');
+previewOverlay.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          previewOverlay.classList.remove('visible');
+}, { passive: false });
+
+function showPreview(b64) {
+          document.getElementById('preview-img').src = 'data:image/jpeg;base64,' + b64;
+          previewOverlay.classList.add('visible');
+          vibrate(15);
+}
+
+// --- Onglets navigateur : ◀ ▶ autour du titre de la fenêtre active ---
+document.getElementById('nav-prev').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('ctabprev'); vibrate(10); }
+}, { passive: false });
+document.getElementById('nav-next').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('ctabnext'); vibrate(10); }
+}, { passive: false });
+
+// --- Ancre titre : appui long = roue de gestion des onglets & fenêtres ---
+// L'arc s'ouvre VERS LE BAS (titre en haut d'écran), symétrique autour du
+// centre : ✖ Fermer (Ctrl+W) à gauche · ↺ Réouvrir le dernier fermé
+// (Ctrl+Maj+T) au centre · ⇄ Fenêtre précédente (Alt+Tab) en bout DROIT.
+// Annuler = relâcher hors de l'arc, comme pour toutes les roues.
+makeWheelAnchor('window-title',
+          () => [
+            { id: 'alttab',   icon: ICONS.alttab,   label: 'Fenêtre précédente (Alt+Tab)' },
+            { id: 'reopen',   icon: ICONS.reopen,   label: 'Réouvrir l\u2019onglet (Ctrl+Maj+T)' },
+            { id: 'closetab', icon: ICONS.closetab, label: 'Fermer l\u2019onglet (Ctrl+W)' },
+          ],
+          (id) => { if (connected) ws.send('c' + id); },
+          () => {},          // pas d'action courte sur le titre
+          { down: true }
+);
+
+function toggleTheme() {
+          document.body.classList.toggle('light');
+          localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+}
+if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+
+// --- Chargement des pictos SVG (ancres + flèches d'onglets) ---
+document.getElementById('nav-prev').innerHTML = ICONS.chevL;
+document.getElementById('nav-next').innerHTML = ICONS.chevR;
+document.getElementById('media-btn').innerHTML = ICONS.playpause;
+document.getElementById('vol-btn').innerHTML = ICONS.volume;
+document.getElementById('power-btn').innerHTML = ICONS.winmenu;
+document.getElementById('tool-btn').innerHTML = ICONS.tools;
+document.getElementById('kbd-btn').innerHTML = ICONS.keyboard;
+setClipAnchor(false);
+    </script>
+</body>
+</html>
