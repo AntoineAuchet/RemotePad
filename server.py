@@ -33,7 +33,7 @@ import threading
 import os
 
 CODE = "".join(secrets.choice(string.digits) for _ in range(4))
-SERVER_VERSION = "srv-v11.4"
+SERVER_VERSION = "srv-v13"
 MAX_ATTEMPTS = 3
 BAN_SECONDS = 30
 banned = {}
@@ -83,6 +83,7 @@ MOUSEEVENTF_MOVE = 0x0001
 MOUSEEVENTF_WHEEL = 0x0800
 MOUSEEVENTF_HWHEEL = 0x1000
 KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_EXTENDEDKEY = 0x0001   # touches étendues (flèches…) — sans ce drapeau, Windows ignore l'événement (srv-v13)
 user32 = ctypes.windll.user32
 
 
@@ -195,22 +196,25 @@ def release_all_buttons():
 
 
 def key_press(vk, scan=0, extended=False):
-    flags = 0x0001 if extended else 0
+    flags = KEYEVENTF_EXTENDEDKEY if extended else 0
     ki_down = KEYBDINPUT(vk, scan, flags, 0, INJECT_MAGIC)
     ki_up = KEYBDINPUT(vk, scan, flags | KEYEVENTF_KEYUP, 0, INJECT_MAGIC)
     _send_input(2, [INPUT(INPUT_KEYBOARD, _INPUTunion(ki=ki_down)), INPUT(INPUT_KEYBOARD, _INPUTunion(ki=ki_up))])
 
 
-def key_combo(modifiers, vk):
+def key_combo(modifiers, vk, vk_extended=False):
     """Combo type Ctrl+C : modificateurs enfoncés, touche, puis tout relâché.
 
     Toute la séquence part dans UNE SEULE salve SendInput (atomique) :
     modificateurs DOWN, touche DOWN/UP, modificateurs UP en ordre inverse.
     Un modificateur ne peut donc jamais rester enfoncé, même en cas d'erreur.
+    vk_extended : la touche est une touche ÉTENDUE (flèches…) — sans
+    KEYEVENTF_EXTENDEDKEY, Windows IGNORE l'événement (bug ±15 s, srv-v13).
     """
+    vkf = KEYEVENTF_EXTENDEDKEY if vk_extended else 0
     downs = [_ki(m) for m in modifiers]
-    downs.append(_ki(vk))
-    ups = [_ki(vk, KEYEVENTF_KEYUP)]
+    downs.append(_ki(vk, vkf))
+    ups = [_ki(vk, vkf | KEYEVENTF_KEYUP)]
     ups.extend(_ki(m, KEYEVENTF_KEYUP) for m in reversed(modifiers))
     _send_input(len(downs) + len(ups), downs + ups)
 
@@ -268,13 +272,17 @@ VK_KEY_W = 0x57
 VK_KEY_T = 0x54
 VK_TAB = 0x09
 VK_LWIN = 0x5B
+VK_LEFT = 0x25         # flèche gauche — touche ÉTENDUE : drapeau KEYEVENTF_EXTENDEDKEY obligatoire
+VK_RIGHT = 0x27        # flèche droite — idem
 
 
 def do_shortcut(sid):
     """Exécute un raccourci par identifiant : copy, paste, cut, undo, redo, all,
     tabprev/tabnext (onglets navigateur), closetab (fermer l'onglet, Ctrl+W),
     reopen (réouvrir le dernier onglet fermé, Ctrl+Maj+T), alttab (bascule
-    fenêtre), winkey (Démarrer)."""
+    fenêtre), winkey (Démarrer), back/fwd (page précédente/suivante,
+    Alt+flèches), settings (réglages rapides, Win+A), left/right (flèche
+    gauche/droite — touches étendues, srv-v13)."""
     table = {
         "copy":     lambda: key_combo([VK_CONTROL], VK_KEY_C),
         "paste":    lambda: key_combo([VK_CONTROL], VK_KEY_V),
@@ -288,6 +296,11 @@ def do_shortcut(sid):
         "reopen":   lambda: key_combo([VK_CONTROL, VK_SHIFT], VK_KEY_T),
         "alttab":   lambda: key_combo([VK_MENU], VK_TAB),
         "winkey":   lambda: key_press(VK_LWIN),
+        "back":     lambda: key_combo([VK_MENU], VK_LEFT, vk_extended=True),
+        "fwd":      lambda: key_combo([VK_MENU], VK_RIGHT, vk_extended=True),
+        "settings": lambda: key_combo([VK_LWIN], VK_KEY_A),
+        "left":     lambda: key_press(VK_LEFT, extended=True),
+        "right":    lambda: key_press(VK_RIGHT, extended=True),
     }
     fn = table.get(sid)
     if fn:
