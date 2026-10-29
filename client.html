@@ -52,17 +52,21 @@
         }
 
         .header {
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 4px 2px 8px;
         }
 
-        .header-controls {
+        .header-side {
+            position: absolute;
+            right: 4px;
+            top: 4px;
             display: flex;
             gap: 6px;
         }
-
+        /* ⊞ + ⚙ en haut à DROITE (v20), ⚙ à l'angle de l'écran */
         .hdr-btn {
             background: var(--surface-2);
             border: 1px solid #2a2a35;
@@ -141,7 +145,7 @@
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 0 2px 2px;
+            padding: 7px 2px 0;
         }
 
         .nav-arrow {
@@ -165,6 +169,10 @@
                 transform: scale(0.92);
             }
 
+        #page-prev, #page-next {
+            color: var(--accent);
+        }
+        /* flèches de page en vert accent (v22) */
         .window-title {
             flex: 1 1 auto;
             font-size: 0.68rem;
@@ -175,8 +183,14 @@
             text-overflow: ellipsis;
             min-height: 16px;
             text-align: center;
+            transition: color 0.12s, text-shadow 0.12s;
         }
 
+            .window-title.glow {
+                color: var(--accent);
+                text-shadow: 0 0 10px var(--accent), 0 0 24px rgba(126,231,135,0.5);
+            }
+        /* halo lumineux à l'appui (v22) */
         .track-status {
             position: absolute;
             top: 10px;
@@ -226,16 +240,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 16px;
+            gap: 20px;
             padding: 8px 0 6px;
         }
-
+            /* pictos élargis + espacés pour le pouce (v21) */
             .action-bar .hdr-btn {
-                width: 46px;
-                height: 40px;
+                width: 60px;
+                height: 36px;
                 font-size: 1.2rem;
             }
-
+        /* large (v21) mais compacte en hauteur (v22) */
         .track-area {
             flex: 1 1 auto;
             position: relative;
@@ -266,6 +280,21 @@
             touch-action: none;
         }
 
+            .scroll-bar.left {
+                right: auto;
+                left: 4px;
+            }
+
+                .scroll-bar.left::before {
+                    right: auto;
+                    left: 4px;
+                }
+
+                .scroll-bar.left .scroll-thumb {
+                    right: auto;
+                    left: 4px;
+                }
+
             .scroll-bar::before {
                 content: '';
                 position: absolute;
@@ -295,12 +324,12 @@
             position: absolute;
             left: 12px;
             right: 60px;
-            bottom: 4px;
+            bottom: 1px;
             height: 32px;
             background: transparent;
             touch-action: none;
         }
-
+            /* collée à l'extrémité basse du touchpad (v22) */
             .scroll-bar-h::before {
                 content: '';
                 position: absolute;
@@ -511,9 +540,14 @@
             display: block;
         }
 
+        .hdr-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
         .action-bar .hdr-btn svg {
-            width: 23px;
-            height: 23px;
+            width: 26px;
+            height: 26px;
         }
 
         .wheel-item svg {
@@ -534,12 +568,13 @@
             background: rgba(20,20,26,0.85);
             padding: 2px 7px;
             border-radius: 6px;
-            white-space: nowrap;
+            white-space: pre-line;
+            text-align: center;
             opacity: 0;
             transition: opacity 0.25s;
             pointer-events: none;
         }
-
+        /* pre-line : les "\n" des libellés font des vraies lignes (v23) */
         .wheel.labels .wheel-lbl {
             opacity: 1;
         }
@@ -637,28 +672,32 @@
 <body>
     <div class="app" id="app">
         <div class="header">
-            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v18</span></h1>
-            <div class="header-controls"></div>
-        </div>
-        <div class="window-nav">
-            <div class="nav-arrow" id="nav-prev" title="Onglet précédent (Ctrl+Maj+Tab)"></div>
-            <div class="window-title" id="window-title"></div>
-            <div class="nav-arrow" id="nav-next" title="Onglet suivant (Ctrl+Tab)"></div>
+            <div class="header-side">
+                <div class="hdr-btn" id="power-btn" title="Menu Démarrer — appui court, appui long = roue extinction"></div>
+                <div class="hdr-btn" id="tool-btn" title="Réglages rapides — appui court, appui long = roue outils"></div>
+            </div>
+            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v24</span></h1>
         </div>
         <div class="track-area" id="track-area">
             <canvas id="trackpad-canvas"></canvas>
             <div class="track-status"><div id="status"><span class="dot"></span>Déconnecté…</div><div class="latency" id="latency">— ms</div></div>
+            <div class="scroll-bar left" id="scroll-bar-l"><div class="scroll-thumb" id="scroll-thumb-l"></div></div>
             <div class="scroll-bar" id="scroll-bar"><div class="scroll-thumb" id="scroll-thumb"></div></div>
             <div class="scroll-bar-h" id="scroll-bar-h"><div class="scroll-thumb-h" id="scroll-thumb-h"></div></div>
-            <div class="hint">Glissez pour déplacer le curseur<br><span style="font-size:0.7rem;">Tap = clic gauche · tap-tap-glissez = sélection de texte<br>Appui long (0,75 s) = clic droit · appui long + glissez = déplacer<br>2 doigts : glissez = défilement · tap = clic droit<br>Appui long sur les ancres ci-dessous = roue d'actions<br>Sur le titre = fermer / réouvrir l'onglet · fenêtre précédente</span></div>
+            <div class="hint">Glissez pour déplacer le curseur<br><span style="font-size:0.7rem;">Tap = clic gauche · tap-tap-glissez = sélection de texte<br>Appui long (0,75 s) = clic droit · appui long + glissez = déplacer<br>2 doigts : glissez = défilement · tap = clic droit<br>Appui long sur les ancres ci-dessous = roue d'actions · sur le titre = onglets<br>← → page précédente/suivante · ◀ ▶ onglet précédent/suivant</span></div>
 
+        </div>
+        <div class="window-nav">
+            <div class="nav-arrow" id="nav-prev" title="Onglet précédent (Ctrl+Maj+Tab)"></div>
+            <div class="nav-arrow" id="page-prev" title="Page précédente (Alt+←)"></div>
+            <div class="window-title" id="window-title"></div>
+            <div class="nav-arrow" id="page-next" title="Page suivante (Alt+→)"></div>
+            <div class="nav-arrow" id="nav-next" title="Onglet suivant (Ctrl+Tab)"></div>
         </div>
         <div class="action-bar">
             <div class="hdr-btn" id="clip-btn" title="Copier — appui court, appui long = roue des raccourcis"></div>
             <div class="hdr-btn" id="media-btn" title="Lecture/Pause — appui court, appui long = roue média"></div>
-            <div class="hdr-btn vol-btn" id="vol-btn" title="Volume (glisser = ajuster, double-tap = muet)"></div>
-            <div class="hdr-btn" id="power-btn" title="Menu Démarrer — appui court, appui long = roue extinction"></div>
-            <div class="hdr-btn" id="tool-btn" title="Outils — appui long = roue outils"></div>
+            <div class="hdr-btn vol-btn" id="vol-btn" title="Volume — glisser = ajuster, appui court = muet"></div>
             <div class="hdr-btn" id="kbd-btn" title="Clavier — appui court, appui long = roue édition"></div>
         </div>
         <div class="fader" id="vol-fader">
@@ -729,6 +768,8 @@ let twoFingerDist = 0;
 let scrollDragging = false;
 let scrollAnchorY = 0;
 let scrollImpulse = 0;
+let scrollLDragging = false;   // barre verticale GAUCHE (miroir de la droite)
+let scrollLAnchorY = 0;
 let scrollHDragging = false;
 let scrollHAnchorX = 0;
 let scrollHImpulse = 0;
@@ -797,7 +838,10 @@ async function requestWakeLock() {
 }
 document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') {
-            if (connected) requestWakeLock();
+            if (connected) {
+              requestWakeLock();
+              sendPing(1200);   // sonde courte : détecte immédiatement une socket zombie après veille écran
+            }
             if (!ws || ws.readyState > 1) connect();
           }
 });
@@ -816,12 +860,13 @@ function connect() {
               // Appairage automatique : le token est dans le hash de l'URL (#CODE)
               const token = location.hash.slice(1);
               if (/^\d{4}$/.test(token)) {
-                ws.send('join:' + token + ':v18');
+                ws.send('join:' + token + ':v24');
               } else {
                 setStatus('Ouvrez RemotePad via le QR code affiché sur le PC', false);
               }
             } else if (d === 'ok') {
               connected = true;
+              lastPongAt = performance.now();
               document.getElementById('track-area').classList.add('active');
               setStatus('Appairé — prêt', true);
               reconnectDelay = 3000; // reset du backoff
@@ -834,11 +879,13 @@ function connect() {
             } else if (d.slice(0, 1) === 'i') {
               // Aperçu écran : JPEG base64 → overlay plein écran (tap pour fermer).
               // 'i!' = échec serveur → jamais d'échec silencieux.
-              if (d === 'i!') { setStatus('Aperçu indisponible — voir la console du PC', false); vibrate([40, 40, 40]); }
+              if (d === 'i!') { setStatus('Aperçu indisponible', false); vibrate([40, 40, 40]); }
               else showPreview(d.slice(1));
             } else if (d.slice(0, 1) === 'w') {
               document.getElementById('window-title').textContent = d.slice(1);
             } else if (d === 'pong') {
+              lastPongAt = performance.now();       // le serveur a répondu : la socket est vivante
+              if (pongWatchdog) { clearTimeout(pongWatchdog); pongWatchdog = null; }
               const rtt = Math.round(performance.now() - lastPingSent);
               const prev = parseInt(document.getElementById('latency').textContent) || 0;
               if (Math.abs(rtt - prev) > 20 || prev === 0) {
@@ -862,15 +909,33 @@ function scheduleReconnect() {
 }
 connect();
 
-// Latence : ping toutes les 5 s
+// Latence + watchdog : ping toutes les 5 s. Si aucun pong n'arrive dans le
+// délai, la socket TCP est morte mais encore "vue ouverte" par le navigateur
+// (typique après veille de l'écran) → on la ferme et on se reconnecte
+// immédiatement au lieu d'attendre le timeout TCP de plusieurs dizaines de s.
 let lastPingSent = 0;
+let lastPongAt = 0;
+let pongWatchdog = null;
+function sendPing(timeoutMs) {
+          if (!connected || !ws || ws.readyState !== 1) return;
+          lastPingSent = performance.now();
+          ws.send('ping');
+          pongWatchdog = setTimeout(() => {
+            if (lastPongAt < lastPingSent) {
+              // aucun pong depuis ce ping : socket zombie → fermeture + reconnexion
+              try { ws.close(); } catch (e) {}
+              connect();
+            }
+          }, timeoutMs);
+}
 function startPing() {
           stopPing();
-          pingTimer = setInterval(() => {
-            if (connected && ws && ws.readyState === 1) { lastPingSent = performance.now(); ws.send('ping'); }
-          }, 5000);
+          pingTimer = setInterval(() => sendPing(4000), 5000);
 }
-function stopPing() { if (pingTimer) { clearInterval(pingTimer); pingTimer = null; } }
+function stopPing() {
+          if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+          if (pongWatchdog) { clearTimeout(pongWatchdog); pongWatchdog = null; }
+}
 
 function drawTrail(x, y) {
           ctx.fillStyle = 'rgba(126,231,135,0.18)';
@@ -1099,8 +1164,39 @@ canvas.addEventListener('touchcancel', (e) => {
 // NB : déclarer les DEUX thumbs avant le premier appel à updateScrollGauge().
 const scrollBar = document.getElementById('scroll-bar');
 const scrollThumb = document.getElementById('scroll-thumb');
+const scrollBarL = document.getElementById('scroll-bar-l');
+const scrollThumbL = document.getElementById('scroll-thumb-l');
 const scrollBarH = document.getElementById('scroll-bar-h');
 const scrollThumbH = document.getElementById('scroll-thumb-h');
+
+// Barre verticale GAUCHE : miroir exact de la droite (même jauge partagée).
+scrollBarL.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          scrollLDragging = true;
+          scrollLAnchorY = e.touches[0].clientY;
+          scrollImpulse = 0;
+          updateScrollGauge();
+}, { passive: false });
+scrollBarL.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!scrollLDragging) return;
+          const y = e.touches[0].clientY;
+          const dy = y - scrollLAnchorY;
+          scrollImpulse = Math.max(-100, Math.min(100, scrollImpulse + dy * 3));
+          updateScrollGauge();
+          if (Math.abs(dy) > 5 && connected) {
+            ws.send(`s${dy > 0 ? 2 : -2}`);
+            scrollLAnchorY = y;
+          }
+}, { passive: false });
+scrollBarL.addEventListener('touchend', () => {
+          scrollLDragging = false;
+          const decay = setInterval(() => {
+            scrollImpulse *= 0.85;
+            if (Math.abs(scrollImpulse) < 2) { scrollImpulse = 0; clearInterval(decay); }
+            updateScrollGauge();
+          }, 50);
+});
 
 scrollBar.addEventListener('touchstart', (e) => {
           e.preventDefault();
@@ -1167,6 +1263,9 @@ function updateScrollGauge() {
             scrollThumb.style.top = '50%';
             scrollThumb.style.height = pct / 2 + '%';
           }
+          // Jauge identique sur la barre gauche (miroir)
+          scrollThumbL.style.top = scrollThumb.style.top;
+          scrollThumbL.style.height = scrollThumb.style.height;
           const hpct = Math.abs(scrollHImpulse);
           if (scrollHImpulse >= 0) {
             scrollThumbH.style.left = (50 - hpct / 2) + '%';
@@ -1205,11 +1304,22 @@ let volActive = false;
 let volLastX = 0;
 let volImpulse = 0;
 let volAccum = 0;
-let lastVolTap = 0;
+let volChanged = false;   // le doigt a-t-il ajusté le volume pendant ce contact ?
+let volMuted = false;     // état "muet" optimiste (géré par RemotePad, sans synchro COM serveur)
 let volDecayTimer = null;
 
+function updateVolIcon() {
+          volBtn.innerHTML = volMuted ? ICONS.mute : ICONS.volume;   // le picto suit l'état muet local
+}
+
 function placeFader(faderEl, anchorEl) {
-          faderEl.style.bottom = (window.innerHeight - anchorEl.getBoundingClientRect().top + 12) + 'px';
+          const r = anchorEl.getBoundingClientRect();
+          if (r.top < 80) {
+            // Ancre en HAUT d'écran (ex. ⚙) : le fader passe en DESSOUS, jamais hors écran (v20)
+            faderEl.style.bottom = (window.innerHeight - r.bottom - 12 - 34) + 'px';
+          } else {
+            faderEl.style.bottom = (window.innerHeight - r.top + 12) + 'px';
+          }
 }
 
 function volKnobUpdate() {
@@ -1226,12 +1336,7 @@ volBtn.addEventListener('touchstart', (e) => {
           placeFader(volFader, volBtn);
           volKnobUpdate();
           volFader.classList.add('visible');
-          const now = performance.now();
-          if (now - lastVolTap < 300) {
-            if (connected) ws.send('v0');
-            vibrate(20);
-          }
-          lastVolTap = now;
+          volChanged = false;   // tant que le doigt ne glisse pas, l'appui peut être un "muet"
 }, { passive: false });
 
 volBtn.addEventListener('touchmove', (e) => {
@@ -1246,12 +1351,23 @@ volBtn.addEventListener('touchmove', (e) => {
             const dir = volAccum > 0 ? 1 : -1;
             if (connected) ws.send(dir > 0 ? 'v1' : 'v-1');
             volAccum -= dir * 12;
+            volChanged = true;
             vibrate(8);
+          }
+          if (volChanged && volMuted) {   // ajuster le volume démute, comme Windows
+            volMuted = false;
+            updateVolIcon();
           }
           volKnobUpdate();
 }, { passive: false });
 
 volBtn.addEventListener('touchend', () => {
+          if (!volChanged && connected) {   // simple appui (pas de glissé) = basculer le muet
+            ws.send('v0');
+            volMuted = !volMuted;
+            updateVolIcon();
+            vibrate(20);
+          }
           volActive = false;
           volDecayTimer = setInterval(() => {
             volImpulse *= 0.8;
@@ -1281,8 +1397,10 @@ const ICONS = {
           mute:      _ic('<path d="M11 5.5 6.5 9H3.5v6h3l4.5 3.5Z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>'),
           prev:      _ic('<path d="M18.5 4.5 9 12l9.5 7.5Z"/><path d="M5.5 4.5v15"/>'),
           next:      _ic('<path d="M5.5 4.5 15 12l-9.5 7.5Z"/><path d="M18.5 4.5v15"/>'),
+          seekback:  _ic('<path d="M20.5 6.5 20.5 17.5 12.5 12Z"/><path d="M12 6.5 12 17.5 4 12Z"/>'),
+          seekfwd:   _ic('<path d="M3.5 6.5 3.5 17.5 11.5 12Z"/><path d="M12 6.5 12 17.5 20 12Z"/>'),
           keyboard:  _ic('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M9.7 10h.01M13.4 10h.01M17.1 10h.01M6 14h.01M9.7 14h.01M16.4 14h.01M12 14h3"/>'),
-          tools:     _ic('<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/>'),
+          tools:     _ic('<path fill="currentColor" stroke="none" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 6.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94 0 .32.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/>'),
           winmenu:   _ic('<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.5"/>'),
           power:     _ic('<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2.5V12"/>'),
           reboot:    _ic('<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/><path d="M23 4v6h-6"/>'),
@@ -1299,6 +1417,8 @@ const ICONS = {
           reopen:    _ic('<path d="M2.5 4v6h6"/><path d="M4.4 15a9 9 0 1 0 2.1-9.4L2.5 10"/>'),
           chevL:     _ic('<path d="M14.5 5 8 12l6.5 7"/>'),
           chevR:     _ic('<path d="M9.5 5 16 12l-6.5 7"/>'),
+          pageL:     _ic('<path d="M20 12H4.5"/><path d="M10.5 5.5 4 12l6.5 6.5"/>'),
+          pageR:     _ic('<path d="M4 12h15.5"/><path d="M13.5 5.5 20 12l-6.5 6.5"/>'),
 };
 
 // ============================================================
@@ -1315,12 +1435,32 @@ let activeAnchor = null;   // roue ouverte → forceClose() appelable depuis le 
 function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
           const o = opts || {};
           const btn = document.getElementById(btnId);
-          let timer = null, labelTimer = null, wheel = null, items = null, pos = null, activeIdx = -1, picked = null, origin = { x: 0, y: 0 };
+          // Placement des libellés (v23) — règle : arcs du bas → libellé POSÉ
+          // au-dessus du picto (bas du texte à 4 px du haut du picto, jamais DEDANS),
+          // décalé vers l'intérieur via lblDx (copier → droite, clavier → gauche,
+          // ancres centrales → centré) ; ancres d'angle haut-droites (⊞/⚙) → SOUS
+          // le picto, texte ALIGNÉ À DROITE dont le bord droit s'ancre sous le
+          // centre du picto (le texte s'étend vers la gauche).
+          const lblDx = o.lblDx || 0;
+          const lblAbove = o.corner !== 'tr';
+          let timer = null, labelTimer = null, holdTimer = null, wheel = null, items = null, pos = null, activeIdx = -1, picked = null, heldFired = 0, origin = { x: 0, y: 0 };
+
+          // Maintien = répétition : picto "hold" (ex. flèches de la roue média) → action immédiate puis
+          // répétée toutes les 500 ms tant que le doigt reste sur le secteur (tick haptique à chaque fois) :
+          // chaque répétition = UN clic sur la flèche, exactement comme si on tapotait la flèche du clavier.
+          const stopHold = () => { if (holdTimer) clearInterval(holdTimer); holdTimer = null; };
+          const startHold = (item) => {
+            if (!item.hold) return;
+            heldFired = 1;
+            onPick(item.id); vibrate(15);
+            holdTimer = setInterval(() => { onPick(item.id); vibrate(8); }, 500);   // clic de flèche toutes les 500 ms (v22)
+          };
 
           const reset = () => {
             if (timer) clearTimeout(timer);
             if (labelTimer) clearTimeout(labelTimer);
-            timer = null; labelTimer = null; wheel = null; items = null; pos = null; activeIdx = -1; picked = null; activeAnchor = null;
+            stopHold();
+            timer = null; labelTimer = null; wheel = null; items = null; pos = null; activeIdx = -1; picked = null; heldFired = 0; activeAnchor = null;
           };
           const forceClose = () => { if (wheel) wheel.remove(); reset(); };
 
@@ -1333,13 +1473,29 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
               const r = btn.getBoundingClientRect();
               const n = items.length;
               const cx0 = r.left + r.width / 2, cy0 = r.top + r.height / 2;
-              const R = 92 + n * 6;   // rayon HAUT : l'arc ne recouvre jamais les ancres voisines de la barre d'action
+              let R = 92 + n * 6;   // rayon HAUT : l'arc ne recouvre jamais les ancres voisines de la barre d'action
               // Étendue de l'arc : demi-cercle resserré autour de la verticale — les
               // pictos des bouts ne retombent jamais sur les ancres voisines ; si
               // 2 pictos, groupe sur la moitié INTÉRIEURE (côté centre de l'écran),
               // angles écartés pour qu'ils ne se chevauchent pas.
               let a0 = 35, a1 = 145;
-              if (n === 2) {
+              if (o.corner) {
+                // Ancre d'ANGLE (v24) : l'arc se dirige vers l'ANGLE OPPOSÉ et ses
+                // pictos forment un demi arc sur la moitié INTÉRIEURE du cercle :
+                //   'tr' haut-droit → descendant vers le bas-gauche (90°→165°)
+                //   'br' bas-droit  → montant vers le haut-gauche (70°→145°)
+                //   'bl' bas-gauche → montant vers le haut-droite (90°→35°)
+                // FORME CIRCULAIRE UNIFORME (v24) : les arcs d'angle balayent 75°
+                // comme ceux de ⊞/⚙ et partagent la même règle de rayon (92+6n).
+                // Les coins BAS sont INCLINÉS pour rester à la hauteur de l'arc
+                // audio (angles dans la bande 35–145°) : jamais de chevauchement
+                // de la barre d'action. Rayon adaptatif : pictos de 54 px → JAMAIS
+                // de chevauchement ; bornage conservé.
+                if (o.corner === 'bl') { a0 = 90; a1 = 35; }
+                else if (o.corner === 'br') { a0 = 70; a1 = 145; }   // même balayage 75° que ⊞/⚙, incliné pour rester à hauteur d'arc audio
+                else { a0 = 90; a1 = 165; }   // 'tr'
+                R = Math.max(R, Math.ceil(58 / (((a1 - a0) / Math.max(1, n - 1)) * Math.PI / 180)));
+              } else if (n === 2) {
                 if (o.spread2) { a0 = 152; a1 = 28; }   // ancre titre : les 2 pictos de part et d'autre du centre
                 else if (cx0 < window.innerWidth / 2) { a0 = 80; a1 = 30; }
                 else { a0 = 100; a1 = 150; }
@@ -1349,7 +1505,7 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
               pos = items.map((it, i) => {
                 const frac = (n === 1) ? 0.5 : i / (n - 1);
                 const a = ((a0 + (a1 - a0) * frac) * Math.PI) / 180;
-                const x = Math.cos(a) * R, y = (o.down ? Math.sin(a) : -Math.sin(a)) * R;   // arc vers le HAUT (ancres en bas d'écran) ou le BAS (ancre titre, en haut)
+                const x = Math.cos(a) * R, y = ((o.down || o.corner === 'tr') ? Math.sin(a) : -Math.sin(a)) * R;   // arc vers le HAUT (ancres en bas d'écran), le BAS pour l'angle haut-droit
                 const b = document.createElement('div');
                 b.className = 'wheel-item';
                 b.innerHTML = it.icon;   // picto SVG monochrome homogène
@@ -1359,9 +1515,21 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
                 if (it.label) {   // libellé d'accessibilité (affiché après ~2 s d'appui)
                   const l = document.createElement('div');
                   l.className = 'wheel-lbl';
-                  l.textContent = it.label;
-                  l.style.left = x + 'px';
-                  l.style.top = (y + 32) + 'px';
+                  l.textContent = it.label;   // libellé sur UNE ligne (v24) ; seul le menu Onglets porte un "\n" explicite (commande à la ligne)
+                  if (lblAbove) {
+                    // Arc du bas : posé AU-DESSUS du picto (bas du texte 4 px au-dessus du picto), décalé vers l'intérieur
+                    l.style.left = (x + lblDx) + 'px';
+                    l.style.top = (y - 31) + 'px';
+                    l.style.transform = 'translate(-50%, -100%)';
+                    l.style.textAlign = 'center';
+                  } else {
+                    // Ancre d'angle HAUT-DROITE (⊞/⚙) : sous le picto, texte aligné à droite,
+                    // bord droit ancré sous le CENTRE du picto → le texte s'étend vers la gauche
+                    l.style.left = x + 'px';
+                    l.style.top = (y + 32) + 'px';
+                    l.style.transform = 'translateX(-100%)';
+                    l.style.textAlign = 'right';
+                  }
                   wheel.appendChild(l);
                 }
                 return { x, y, el: b };
@@ -1398,11 +1566,14 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
               if (best >= 0 && bestD < 60 && activeIdx !== best) {          // secteur survolé
                 activeIdx = best;
                 picked = items[best];
+                stopHold();                                                // on quitte un éventuel secteur "hold"
+                startHold(picked);                                         // ... et on arme celui du nouveau secteur
                 pos.forEach((p, i) => p.el.classList.toggle('active', i === best));
                 vibrate(8);                                                // tick haptique
               } else if ((best < 0 || bestD >= 60) && activeIdx !== -1) {   // sortie de roue
                 activeIdx = -1;
                 picked = null;
+                stopHold();                                                // doigt sorti → stoppe la répétition
                 pos.forEach(p => p.el.classList.remove('active'));
               }
             } else if (timer) {   // le doigt bouge avant l'ouverture → annulé (c'était un glisser)
@@ -1414,7 +1585,7 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
           btn.addEventListener('touchend', (e) => {
             e.stopPropagation();
             if (wheel) {
-              if (picked) { onPick(picked.id); vibrate(18); }
+              if (picked && !heldFired) { onPick(picked.id); vibrate(18); }   // action unique (pas déjà tirée par le hold)
               forceClose();
             } else if (timer) {   // appui court = action prédite par l'ancre
               clearTimeout(timer);
@@ -1447,9 +1618,9 @@ makeWheelAnchor('clip-btn',
             // sont dans la roue ⌨, le thème dans la roue ⚙). L'action portée
             // par l'ancre n'est PAS dupliquée dans l'arc.
             const base = [
-              { id: 'copy',  icon: ICONS.copy,  label: 'Copier' },
-              { id: 'cut',   icon: ICONS.cut,   label: 'Couper' },
-              { id: 'paste', icon: ICONS.paste, label: 'Coller' },
+              { id: 'copy',  icon: ICONS.copy,  label: 'Copier (Ctrl+C)' },   // libellé au même format que le menu Clavier (v24)
+              { id: 'cut',   icon: ICONS.cut,   label: 'Couper (Ctrl+X)' },
+              { id: 'paste', icon: ICONS.paste, label: 'Coller (Ctrl+V)' },
             ];
             return base.filter(it => it.id !== (clipHasContent ? 'paste' : 'copy'));
           },
@@ -1458,18 +1629,21 @@ makeWheelAnchor('clip-btn',
             if (!connected) return;
             if (clipHasContent) { ws.send('cpaste'); setClipAnchor(false); vibrate(15); }
             else { ws.send('ccopy'); setClipAnchor(true); vibrate(15); }   // copier → l'ancre devient Coller
-          }
+          },
+          { corner: 'bl', lblDx: 28 }   // ancre d'ANGLE bas-gauche (v23) : demi arc montant collé au bord gauche, libellés en haut à DROITE des pictos
 );
 
 // --- Ancre média : appui court = play/pause, appui long = roue ---
-// L'ancre EST play/pause : pas de doublon dans l'arc.
+// L'ancre EST play/pause : pas de doublon dans l'arc. Le muet vit désormais
+// sur l'ancre volume (appui court). Les flèches se maintiennent = répétition 1 s.
 makeWheelAnchor('media-btn',
-          () => [
-            { id: 'mute', icon: ICONS.mute, label: 'Muet' },
-            { id: 'prev', icon: ICONS.prev, label: 'Piste précédente' },
-            { id: 'next', icon: ICONS.next, label: 'Piste suivante' },
+          () => [   // l'index 0 part du bout DROIT de l'arc → rendu de gauche à droite : ⏮ · ⏪ · ⏩ · ⏭
+            { id: 'next',     icon: ICONS.next,     label: 'Piste suivante' },
+            { id: 'right',    icon: ICONS.seekfwd,  label: 'Flèche droite', hold: true },   // maintenir = clics répétés (v22)
+            { id: 'left',     icon: ICONS.seekback, label: 'Flèche gauche', hold: true },
+            { id: 'prev',     icon: ICONS.prev,     label: 'Piste précédente' },
           ],
-          (id) => { if (connected) { ws.send({ mute: 'v0', prev: 'r', next: 'n' }[id]); vibrate(15); } },
+          (id) => { if (connected) { ws.send({ prev: 'r', left: 'cleft', right: 'cright', next: 'n' }[id]); } },
           () => { if (connected) { ws.send('p'); vibrate(10); } }
 );
 
@@ -1482,7 +1656,8 @@ makeWheelAnchor('kbd-btn',
             { id: 'all',    icon: ICONS.all,    label: 'Tout sélectionner (Ctrl+A)' },
           ],
           (id) => { if (connected) { ws.send('c' + id); vibrate(15); } },
-          () => { toggleKeyboard(); vibrate(10); }
+          () => { toggleKeyboard(); vibrate(10); },
+          { corner: 'br', lblDx: -28 }   // ancre d'ANGLE bas-droit (v23) : demi arc montant collé au bord droit, libellés en haut à GAUCHE des pictos
 );
 
 // --- Sensibilité du trackpad : fader persistant (localStorage) ---
@@ -1549,7 +1724,8 @@ makeWheelAnchor('tool-btn',
             { id: 'view',   icon: ICONS.view,   label: 'Aperçu de l\u2019écran du PC' },
           ],
           toolPick,
-          () => {}   // pas d'action courte : la roue est le seul accès (sobre)
+          () => { if (connected) { ws.send('csettings'); vibrate(10); } },   // appui court = réglages rapides Windows (Win+A)
+          { corner: 'tr' }   // ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
 );
 
 // --- Ancre extinction : appui court = Menu Démarrer, roue = éteindre/redémarrer/veille ---
@@ -1583,7 +1759,8 @@ makeWheelAnchor('power-btn',
             const labels = { off: 'Éteindre le PC ?', reboot: 'Redémarrer le PC ?', sleep: 'Mettre le PC en veille ?' };
             askConfirm(labels[id], () => { if (connected) { ws.send('x' + id); vibrate(20); } });
           },
-          () => { if (connected) { ws.send('cwinkey'); vibrate(10); } }
+          () => { if (connected) { ws.send('cwinkey'); vibrate(10); } },
+          { corner: 'tr' }   // ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
 );
 
 // --- Aperçu de l'écran du PC (tap n'importe où pour fermer) ---
@@ -1600,29 +1777,45 @@ function showPreview(b64) {
 }
 
 // --- Onglets navigateur : ◀ ▶ autour du titre de la fenêtre active ---
+// ← → = page précédente/suivante (Alt+flèches, navigation web) ;
+// ◀ ▶ = onglet précédent/suivant (Ctrl+Tab / Ctrl+Maj+Tab).
+document.getElementById('page-prev').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('cback'); vibrate(10); }
+}, { passive: false });
+document.getElementById('page-next').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('cfwd'); vibrate(10); }
+}, { passive: false });
 document.getElementById('nav-prev').addEventListener('touchstart', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (connected) { ws.send('ctabprev'); vibrate(10); }
 }, { passive: false });
+// Effet lumineux du titre à l'appui (retour perceptible du doigt — v22)
+const windowTitleEl = document.getElementById('window-title');
+windowTitleEl.addEventListener('touchstart', () => {
+          windowTitleEl.classList.add('glow');
+          setTimeout(() => windowTitleEl.classList.remove('glow'), 450);
+}, { passive: true });
 document.getElementById('nav-next').addEventListener('touchstart', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (connected) { ws.send('ctabnext'); vibrate(10); }
 }, { passive: false });
 
 // --- Ancre titre : appui long = roue de gestion des onglets & fenêtres ---
-// L'arc s'ouvre VERS LE BAS (titre en haut d'écran), symétrique autour du
-// centre : ✖ Fermer (Ctrl+W) à gauche · ↺ Réouvrir le dernier fermé
-// (Ctrl+Maj+T) au centre · ⇄ Fenêtre précédente (Alt+Tab) en bout DROIT.
+// La barre étant désormais AU-DESSUS des ancres d'action (bas d'écran),
+// l'arc s'ouvre VERS LE HAUT, symétrique autour du centre : Fermer (Ctrl+W)
+// à gauche · Réouvrir le dernier fermé (Ctrl+Maj+T) au centre ·
+// Fenêtre précédente (Alt+Tab) en bout DROIT.
 // Annuler = relâcher hors de l'arc, comme pour toutes les roues.
 makeWheelAnchor('window-title',
-          () => [
-            { id: 'alttab',   icon: ICONS.alttab,   label: 'Fenêtre précédente (Alt+Tab)' },
-            { id: 'reopen',   icon: ICONS.reopen,   label: 'Réouvrir l\u2019onglet (Ctrl+Maj+T)' },
-            { id: 'closetab', icon: ICONS.closetab, label: 'Fermer l\u2019onglet (Ctrl+W)' },
+          () => [   // index 0 = bout GAUCHE de l'arc (spread2) : ✖ Fermer à gauche · ↺ au centre · ⇄ en bout DROIT (v20)
+            { id: 'closetab', icon: ICONS.closetab, label: 'Fermer l\u2019onglet\n(Ctrl+W)' },   // "\n" explicite : la commande passe à la ligne (v24)
+            { id: 'reopen',   icon: ICONS.reopen,   label: 'Réouvrir l\u2019onglet\n(Ctrl+Maj+T)' },
+            { id: 'alttab',   icon: ICONS.alttab,   label: 'Fenêtre précédente\n(Alt+Tab)' },
           ],
           (id) => { if (connected) ws.send('c' + id); },
-          () => {},          // pas d'action courte sur le titre
-          { down: true }
+          () => {}           // pas d'action courte sur le titre
 );
 
 function toggleTheme() {
@@ -1634,8 +1827,10 @@ if (localStorage.getItem('theme') === 'light') document.body.classList.add('ligh
 // --- Chargement des pictos SVG (ancres + flèches d'onglets) ---
 document.getElementById('nav-prev').innerHTML = ICONS.chevL;
 document.getElementById('nav-next').innerHTML = ICONS.chevR;
+document.getElementById('page-prev').innerHTML = ICONS.pageL;
+document.getElementById('page-next').innerHTML = ICONS.pageR;
 document.getElementById('media-btn').innerHTML = ICONS.playpause;
-document.getElementById('vol-btn').innerHTML = ICONS.volume;
+updateVolIcon();   // picto volume ou muet selon l'état optimiste local
 document.getElementById('power-btn').innerHTML = ICONS.winmenu;
 document.getElementById('tool-btn').innerHTML = ICONS.tools;
 document.getElementById('kbd-btn').innerHTML = ICONS.keyboard;
