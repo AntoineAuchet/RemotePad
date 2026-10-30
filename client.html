@@ -58,6 +58,7 @@
             align-items: center;
             justify-content: center;
             padding: 4px 2px 8px;
+            min-height: 48px;   /* v30 : réserve la hauteur des boutons ⊞/⚙ (44 px + 4 px) — le trackpad démarre SOUS eux, sa bordure haute ne les recouvre plus */
         }
 
         .header-side {
@@ -339,18 +340,18 @@
             position: absolute;
             left: 12px;
             right: 60px;
-            bottom: 1px;
+            bottom: 4px;   /* v30 : barre collée au cadre inférieur, symétrique des barres latérales (rail à 8 px du bord) */
             height: 32px;
             background: transparent;
             touch-action: none;
         }
-            /* collée à l'extrémité basse du touchpad (v22) */
+            /* v30 : le rail est à 8 px du bord bas, comme les rails latéraux à 8 px des bords */
             .scroll-bar-h::before {
                 content: '';
                 position: absolute;
                 left: 0;
                 right: 0;
-                top: 4px;
+                bottom: 4px;
                 height: 4px;
                 background: #1e1e28;
                 border-radius: 99px;
@@ -362,7 +363,7 @@
 
         .scroll-thumb-h {
             position: absolute;
-            top: 4px;
+            bottom: 4px;   /* v30 : le pouce glisse sur le rail collé au bord bas */
             height: 4px;
             background: var(--accent);
             border-radius: 99px;
@@ -777,7 +778,7 @@
                 <div class="hdr-btn" id="power-btn" role="button" aria-label="Menu Démarrer — appui long : éteindre, redémarrer, veille" title="Menu Démarrer — appui court, appui long = roue extinction"></div>
                 <div class="hdr-btn" id="tool-btn" role="button" aria-label="Outils — appui court : réglages rapides, appui long : thème, sensibilité, défilement, aperçu, tutoriel" title="Réglages rapides — appui court, appui long = roue outils"></div>
             </div>
-            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v29</span></h1>
+            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v30</span></h1>
         </div>
         <div class="track-area" id="track-area">
             <canvas id="trackpad-canvas"></canvas>
@@ -971,7 +972,7 @@ function connect() {
               // Appairage automatique : le token est dans le hash de l'URL (#CODE)
               const token = location.hash.slice(1);
               if (/^\d{6}$/.test(token)) {
-                ws.send('join:' + token + ':v29');
+                ws.send('join:' + token + ':v30');
               } else {
                 setStatus('Ouvrez RemotePad via le QR code affiché sur le PC', false);
               }
