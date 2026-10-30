@@ -1,0 +1,10 @@
+# Python embarqué (auto-créé par le lanceur — ~100 Mo, hors repo)
+python/
+
+# Artefacts générés à l'exécution
+remotepad_qr.png
+__pycache__/
+*.pyc
+
+# Artefacts pytest
+.pytest_cache/
