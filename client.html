@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RemotePad — Client</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        /* v28 : plus de police distante (audit P3, prérequis PWA) — pile
+           système : zéro requête externe, fonctionne hors-ligne. */
 
         :root {
             --bg: #07080c;
@@ -39,7 +40,7 @@
             height: 100vh;
             background: var(--bg);
             color: var(--fg);
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
             user-select: none;
         }
@@ -73,8 +74,9 @@
             border-radius: 10px;
             color: var(--fg);
             font-size: 1.05rem;
-            width: 38px;
-            height: 32px;
+            /* v26 : zone tactile élargie (audit P2) */
+            width: 44px;
+            height: 40px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -150,8 +152,9 @@
 
         .nav-arrow {
             flex: 0 0 auto;
-            width: 32px;
-            height: 24px;
+            /* v26 : zone tactile élargie (audit P2) */
+            width: 44px;
+            height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -246,7 +249,7 @@
             /* pictos élargis + espacés pour le pouce (v21) */
             .action-bar .hdr-btn {
                 width: 60px;
-                height: 36px;
+                height: 44px;   /* v26 : cible du pouce ≥ 44 px (audit P2) */
                 font-size: 1.2rem;
             }
         /* large (v21) mais compacte en hauteur (v22) */
@@ -264,6 +267,18 @@
                 opacity: 0.35;
                 pointer-events: none;
             }
+
+            /* v28 : le drag devient VISIBLE — bordure orange pendant un
+               déplacement d'élément, vs vert en déplacement simple (audit P3). */
+            .track-area.dragging {
+                border-color: #ffb454;
+                box-shadow: inset 0 0 80px rgba(255, 180, 84, 0.10);
+            }
+
+        body.light .track-area.dragging {
+            border-color: #e8590c;
+            box-shadow: inset 0 0 80px rgba(232, 89, 12, 0.08);
+        }
 
         body.light .track-area {
             background: linear-gradient(170deg, #ffffff 0%, #ececf1 100%);
@@ -493,6 +508,92 @@
             font-weight: 600;
         }
 
+        /* Tutoriel : 3 gestes à la première connexion (v26, audit P2) —
+           v27 : croix ✕ de fermeture + un tap sur le touchpad suffit aussi. */
+        .onboard-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5,5,8,0.9);
+            z-index: 220;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .onboard-overlay.visible {
+                display: flex;
+            }
+
+        .onboard-box {
+            position: relative;   /* v27 : ancre de la croix ✕ */
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            border-radius: 16px;
+            padding: 22px 24px 18px;
+            text-align: center;
+            max-width: 78vw;
+        }
+
+        .onboard-x {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 44px;      /* cible ≥ 44 px (audit P2) */
+            height: 44px;
+            border: none;
+            background: transparent;
+            color: var(--fg-muted);
+            font-size: 1.15rem;
+            line-height: 1;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .onboard-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .onboard-text {
+            font-size: 0.92rem;
+            line-height: 1.6;
+            color: var(--fg-muted);
+            white-space: pre-line;
+            margin-bottom: 16px;
+        }
+
+        .onboard-dots {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+            .onboard-dots span {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--fg-muted);
+                opacity: 0.4;
+            }
+
+            .onboard-dots span.on {
+                background: var(--accent);
+                opacity: 1;
+            }
+
+        .onboard-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--accent);
+            background: var(--accent);
+            color: #0d0d10;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
         .wheel {
             position: fixed;
             width: 0;
@@ -673,10 +774,10 @@
     <div class="app" id="app">
         <div class="header">
             <div class="header-side">
-                <div class="hdr-btn" id="power-btn" title="Menu Démarrer — appui court, appui long = roue extinction"></div>
-                <div class="hdr-btn" id="tool-btn" title="Réglages rapides — appui court, appui long = roue outils"></div>
+                <div class="hdr-btn" id="power-btn" role="button" aria-label="Menu Démarrer — appui long : éteindre, redémarrer, veille" title="Menu Démarrer — appui court, appui long = roue extinction"></div>
+                <div class="hdr-btn" id="tool-btn" role="button" aria-label="Outils — appui court : réglages rapides, appui long : thème, sensibilité, défilement, aperçu, tutoriel" title="Réglages rapides — appui court, appui long = roue outils"></div>
             </div>
-            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v24</span></h1>
+            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v28</span></h1>
         </div>
         <div class="track-area" id="track-area">
             <canvas id="trackpad-canvas"></canvas>
@@ -688,17 +789,17 @@
 
         </div>
         <div class="window-nav">
-            <div class="nav-arrow" id="nav-prev" title="Onglet précédent (Ctrl+Maj+Tab)"></div>
-            <div class="nav-arrow" id="page-prev" title="Page précédente (Alt+←)"></div>
-            <div class="window-title" id="window-title"></div>
-            <div class="nav-arrow" id="page-next" title="Page suivante (Alt+→)"></div>
-            <div class="nav-arrow" id="nav-next" title="Onglet suivant (Ctrl+Tab)"></div>
+            <div class="nav-arrow" id="nav-prev" role="button" aria-label="Onglet précédent" title="Onglet précédent (Ctrl+Maj+Tab)"></div>
+            <div class="nav-arrow" id="page-prev" role="button" aria-label="Page précédente" title="Page précédente (Alt+←)"></div>
+            <div class="window-title" id="window-title" role="button" aria-label="Fenêtre active — appui long : fermer, réouvrir, changer de fenêtre"></div>
+            <div class="nav-arrow" id="page-next" role="button" aria-label="Page suivante" title="Page suivante (Alt+→)"></div>
+            <div class="nav-arrow" id="nav-next" role="button" aria-label="Onglet suivant" title="Onglet suivant (Ctrl+Tab)"></div>
         </div>
         <div class="action-bar">
-            <div class="hdr-btn" id="clip-btn" title="Copier — appui court, appui long = roue des raccourcis"></div>
-            <div class="hdr-btn" id="media-btn" title="Lecture/Pause — appui court, appui long = roue média"></div>
-            <div class="hdr-btn vol-btn" id="vol-btn" title="Volume — glisser = ajuster, appui court = muet"></div>
-            <div class="hdr-btn" id="kbd-btn" title="Clavier — appui court, appui long = roue édition"></div>
+            <div class="hdr-btn" id="clip-btn" role="button" aria-label="Presse-papiers — appui court : copier ou coller, appui long : couper" title="Copier — appui court, appui long = roue des raccourcis"></div>
+            <div class="hdr-btn" id="media-btn" role="button" aria-label="Lecture/Pause — appui long : pistes et flèches" title="Lecture/Pause — appui court, appui long = roue média"></div>
+            <div class="hdr-btn vol-btn" id="vol-btn" role="button" aria-label="Volume — appui court : muet, glisser : ajuster" title="Volume — glisser = ajuster, appui court = muet"></div>
+            <div class="hdr-btn" id="kbd-btn" role="button" aria-label="Clavier — appui court : afficher ou masquer, appui long : annuler, rétablir, tout sélectionner" title="Clavier — appui court, appui long = roue édition"></div>
         </div>
         <div class="fader" id="vol-fader">
             <div class="fader-track"></div><div class="fader-center"></div>
@@ -718,13 +819,22 @@
                 </div>
             </div>
         </div>
+        <div class="onboard-overlay" id="onboard-overlay">
+            <div class="onboard-box">
+                <button class="onboard-x" id="onboard-x" aria-label="Fermer le tutoriel">✕</button>
+                <div class="onboard-title" id="onboard-title"></div>
+                <div class="onboard-text" id="onboard-text"></div>
+                <div class="onboard-dots" id="onboard-dots"></div>
+                <button class="onboard-btn" id="onboard-next">Suivant</button>
+            </div>
+        </div>
         <div class="keyboard-area hidden">
             <textarea id="text-input" class="kb-field" placeholder="Tapez un texte..." autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
             <div class="kb-row">
-                <button onclick="sendSpecial(13)">Entrée</button>
-                <button onclick="sendSpecial(8)">⌫</button>
-                <button onclick="sendSpecial(9)">Tab</button>
-                <button onclick="sendText()">Envoyer</button>
+                <button id="kb-enter">Entrée</button>
+                <button id="kb-bs">⌫</button>
+                <button id="kb-tab">Tab</button>
+                <button id="kb-send">Envoyer</button>
             </div>
         </div>
     </div>
@@ -743,6 +853,7 @@ let wakeLock = null;
 let pingTimer = null;
 
 const canvas = document.getElementById('trackpad-canvas');
+const trackArea = document.getElementById('track-area');   // v28 : trace orange en drag
 const ctx = canvas.getContext('2d');
 let lastX = 0, lastY = 0, lastT = 0;
 let moveXSum = 0, moveYSum = 0;
@@ -859,8 +970,8 @@ function connect() {
             if (d === 'need-code') {
               // Appairage automatique : le token est dans le hash de l'URL (#CODE)
               const token = location.hash.slice(1);
-              if (/^\d{4}$/.test(token)) {
-                ws.send('join:' + token + ':v24');
+              if (/^\d{6}$/.test(token)) {
+                ws.send('join:' + token + ':v28');
               } else {
                 setStatus('Ouvrez RemotePad via le QR code affiché sur le PC', false);
               }
@@ -872,10 +983,11 @@ function connect() {
               reconnectDelay = 3000; // reset du backoff
               requestWakeLock();
               startPing();
+              if (!localStorage.getItem('onboarded')) showOnboarding();   // première connexion : le tutoriel (v27)
             } else if (d === 'error') {
               setStatus('Code refusé — rescannez le QR code', false);
             } else if (d === 'banned') {
-              setStatus('Trop de tentatives — réessayez dans 30 s', false);
+              setStatus('Trop de tentatives — patientez avant de réessayer', false);
             } else if (d.slice(0, 1) === 'i') {
               // Aperçu écran : JPEG base64 → overlay plein écran (tap pour fermer).
               // 'i!' = échec serveur → jamais d'échec silencieux.
@@ -985,6 +1097,7 @@ canvas.addEventListener('touchstart', (e) => {
           if (e.touches.length === 2) {
             if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
             isLongPress = false; isDragging = false;
+            trackArea.classList.remove('dragging');   // v28 : 2e doigt = défilement, plus de drag
             touchMoved = true;
             twoFingerScroll = true;
             twoFingerStartTime = performance.now();
@@ -1005,6 +1118,7 @@ canvas.addEventListener('touchstart', (e) => {
           isLongPress = false;
           isDragging = false;
           twoFingerScroll = false;
+          trackArea.classList.remove('dragging');   // v28 : nouveau contact → trace neutre
           // Tap-tap-glissez (sélection de texte) : 2e tap d'un double-tap.
           // Condition de PROXIMITÉ : deux taps ne forment un double-tap que s'ils
           // sont proches (< 50 px) — deux taps rapprochés dans le temps mais à des
@@ -1071,6 +1185,7 @@ canvas.addEventListener('touchmove', (e) => {
             vibrate(10);
             if (connected) ws.send('b0;1');
           }
+          trackArea.classList.toggle('dragging', isDragging);   // v28 : trace orange tant que le drag est actif
           // Pendant le tap-tap-glisser, le curseur reste à l'ancre tant que le bouton
           // n'est pas enfoncé ; ensuite le curseur bouge AUSSI pendant le drag
           // (sinon rien n'est jamais déplacé ni sélectionné).
@@ -1118,6 +1233,7 @@ canvas.addEventListener('touchend', (e) => {
           dragFromTap = false;
           dragTapStarted = false;
           twoFingerScroll = false;
+          trackArea.classList.remove('dragging');   // v28 : fin du contact → trace neutre
           if (!connected) return;
           if (wasDragging) {
             ws.send('b0;0');                    // fin de drag (appui long OU tap-tap-glissé)
@@ -1155,6 +1271,7 @@ canvas.addEventListener('touchcancel', (e) => {
           dragFromTap = false;
           dragTapStarted = false;
           twoFingerScroll = false;
+          trackArea.classList.remove('dragging');   // v28 : contact annulé → trace neutre
           gestureTouches = 0;
           twoFingerDist = 0;
           if (connected) ws.send('b0;0');        // libération inconditionnelle
@@ -1296,6 +1413,20 @@ function toggleKeyboard() {
           document.getElementById('kbd-btn').classList.toggle('active', !area.classList.contains('hidden'));
 }
 
+// v27 : Entrée/⌫/Tab/Envoyer ne volent plus le focus du champ de saisie.
+// Sur mobile, tapoter un bouton faisait perdre le focus au textarea → le
+// clavier virtuel du téléphone disparaissait. preventDefault au touchstart
+// garde le focus dans le champ (le tap ne devient jamais un clic natif) ;
+// le click ne sert qu'aux tests souris sur desktop.
+document.querySelectorAll('.kb-row button').forEach((b) => {
+          const act = () => {
+            if (b.id === 'kb-send') sendText();
+            else sendSpecial({ 'kb-enter': 13, 'kb-bs': 8, 'kb-tab': 9 }[b.id]);
+          };
+          b.addEventListener('touchstart', (e) => { e.preventDefault(); act(); }, { passive: false });
+          b.addEventListener('click', act);
+});
+
 // --- Volume : fader horizontal (gauche = baisser, droite = augmenter) ---
 const volBtn = document.getElementById('vol-btn');
 const volFader = document.getElementById('vol-fader');
@@ -1419,6 +1550,7 @@ const ICONS = {
           chevR:     _ic('<path d="M9.5 5 16 12l-6.5 7"/>'),
           pageL:     _ic('<path d="M20 12H4.5"/><path d="M10.5 5.5 4 12l6.5 6.5"/>'),
           pageR:     _ic('<path d="M4 12h15.5"/><path d="M13.5 5.5 20 12l-6.5 6.5"/>'),
+          help:      _ic('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.3 1-1.3 1.9"/><path d="M12 17h.01"/>'),
 };
 
 // ============================================================
@@ -1450,8 +1582,12 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
           // chaque répétition = UN clic sur la flèche, exactement comme si on tapotait la flèche du clavier.
           const stopHold = () => { if (holdTimer) clearInterval(holdTimer); holdTimer = null; };
           const startHold = (item) => {
+            // Réarmement à l'entrée de CHAQUE secteur (v25, audit P1) :
+            // après avoir effleuré un picto hold (⏪/⏩), glisser vers un
+            // picto normal (ex. ⏮) puis relâcher n'exécutait RIEN —
+            // heldFired restait à 1 et le test du touchend échouait.
+            heldFired = item.hold ? 1 : 0;
             if (!item.hold) return;
-            heldFired = 1;
             onPick(item.id); vibrate(15);
             holdTimer = setInterval(() => { onPick(item.id); vibrate(8); }, 500);   // clic de flèche toutes les 500 ms (v22)
           };
@@ -1638,10 +1774,12 @@ makeWheelAnchor('clip-btn',
 // sur l'ancre volume (appui court). Les flèches se maintiennent = répétition 1 s.
 makeWheelAnchor('media-btn',
           () => [   // l'index 0 part du bout DROIT de l'arc → rendu de gauche à droite : ⏮ · ⏪ · ⏩ · ⏭
-            { id: 'next',     icon: ICONS.next,     label: 'Piste suivante' },
-            { id: 'right',    icon: ICONS.seekfwd,  label: 'Flèche droite', hold: true },   // maintenir = clics répétés (v22)
-            { id: 'left',     icon: ICONS.seekback, label: 'Flèche gauche', hold: true },
-            { id: 'prev',     icon: ICONS.prev,     label: 'Piste précédente' },
+            { id: 'next',     icon: ICONS.next,     label: `Piste
+suivante` },   // v27 : 2 lignes, comme ⏭
+            { id: 'right',    icon: ICONS.seekfwd,  label: 'Avancer (→)', hold: true },   // seek bande son : srv-v14.3 ; maintien = seek répété (v22)
+            { id: 'left',     icon: ICONS.seekback, label: 'Reculer (←)', hold: true },
+            { id: 'prev',     icon: ICONS.prev,     label: `Piste
+précédente` },   // v27 : 2 lignes, comme ⏭
           ],
           (id) => { if (connected) { ws.send({ prev: 'r', left: 'cleft', right: 'cright', next: 'n' }[id]); } },
           () => { if (connected) { ws.send('p'); vibrate(10); } }
@@ -1706,6 +1844,7 @@ sensFader.addEventListener('touchend', () => {
 // --- Ancre outils : roue des réglages ---
 function toolPick(id) {
           if (id === 'theme') { toggleTheme(); return; }            // action locale
+          if (id === 'help') { showOnboarding(); return; }          // revoir le tutoriel (v26)
           if (id === 'sens') { openSensFader(); return; }           // réglage local
           if (id === 'scroll') {                                    // inversion du défilement 2 doigts (persistante)
             scrollInvert = !scrollInvert;
@@ -1722,6 +1861,7 @@ makeWheelAnchor('tool-btn',
             { id: 'sens',   icon: ICONS.sens,   label: 'Sensibilité du trackpad' },
             { id: 'scroll', icon: ICONS.scroll, label: scrollInvert ? 'Défilement inversé — toucher pour rétablir' : 'Inverser le défilement (2 doigts)' },
             { id: 'view',   icon: ICONS.view,   label: 'Aperçu de l\u2019écran du PC' },
+            { id: 'help',   icon: ICONS.help,   label: 'Revoir le tutoriel' },   // v26 : rejoue l'onboarding
           ],
           toolPick,
           () => { if (connected) { ws.send('csettings'); vibrate(10); } },   // appui court = réglages rapides Windows (Win+A)
@@ -1823,6 +1963,72 @@ function toggleTheme() {
           localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
 }
 if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+
+// --- Tutoriel : 3 gestes à la première connexion (v26, audit P2) ---
+// Se déclenche à l'appairage si 'onboarded' est absent du localStorage ;
+// rejouable à volonté depuis la roue Outils (item « Revoir le tutoriel »).
+// v27 : jamais bloquant — croix ✕, ou un simple doigt posé sur le
+// touchpad (l'overlay le recouvre) referme le tutoriel.
+// Les textes utilisent des template literals (vrais sauts de ligne),
+// affichés via white-space: pre-line.
+const ONBOARD_STEPS = [
+  { t: 'Déplacer et cliquer',
+    d: `Glissez un doigt = déplacer le curseur.
+Tap = clic gauche · tap-tap = double-clic.
+Appui long + glissez = faire glisser un élément.` },
+  { t: 'Appui long = roues d’actions',
+    d: `Chaque bouton du bas (presse-papiers, média, volume, clavier) ouvre sa roue si vous maintenez le doigt :
+glissez vers une action puis relâchez pour l’exécuter.
+Relâcher hors de la roue = annuler.` },
+  { t: 'Défilement et onglets',
+    d: `2 doigts = défilement (sens inversable dans la roue Outils).
+Les flèches autour du titre changent de page ou d’onglet.
+Appui long sur le titre = fermer, réouvrir ou changer de fenêtre.` },
+];
+const onboardOverlay = document.getElementById('onboard-overlay');
+let onboardIdx = 0;
+
+function renderOnboard() {
+          const s = ONBOARD_STEPS[onboardIdx];
+          document.getElementById('onboard-title').textContent = s.t;
+          document.getElementById('onboard-text').textContent = s.d;
+          document.getElementById('onboard-dots').innerHTML =
+            ONBOARD_STEPS.map((_, i) => '<span class="' + (i === onboardIdx ? 'on' : '') + '"></span>').join('');
+          document.getElementById('onboard-next').textContent =
+            onboardIdx === ONBOARD_STEPS.length - 1 ? 'C’est parti' : 'Suivant';
+}
+
+function showOnboarding() {
+          onboardIdx = 0;
+          renderOnboard();
+          onboardOverlay.classList.add('visible');
+}
+
+function onboardClose() {
+          onboardOverlay.classList.remove('visible');
+          localStorage.setItem('onboarded', '1');   // vu une fois : plus de tutoriel aux démarrages suivants
+}
+document.getElementById('onboard-x').addEventListener('click', onboardClose);
+// Un doigt posé sur le touchpad (l'overlay le recouvre) referme aussi le
+// tutoriel — jamais bloquant (v27). Un tap DANS la carte (Suivant, ✕ ou
+// le texte) garde son comportement normal. preventDefault évite qu'après
+// la fermeture un clic synthétique frappe un bouton situé dessous.
+const onboardBackdropTap = (e) => {
+          if (e.target.closest && e.target.closest('.onboard-box')) return;
+          e.preventDefault();
+          onboardClose();
+};
+onboardOverlay.addEventListener('touchstart', onboardBackdropTap, { passive: false });
+onboardOverlay.addEventListener('click', onboardBackdropTap);
+
+document.getElementById('onboard-next').addEventListener('click', () => {
+          onboardIdx++;
+          if (onboardIdx >= ONBOARD_STEPS.length) {
+            onboardClose();
+          } else {
+            renderOnboard();
+          }
+});
 
 // --- Chargement des pictos SVG (ancres + flèches d'onglets) ---
 document.getElementById('nav-prev').innerHTML = ICONS.chevL;
