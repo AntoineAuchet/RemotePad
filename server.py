@@ -35,7 +35,7 @@ import threading
 import os
 
 CODE = "".join(secrets.choice(string.digits) for _ in range(6))
-SERVER_VERSION = "srv-v14.4"
+SERVER_VERSION = "srv-v14.5"
 MAX_ATTEMPTS = 3        # échecs cumulés PAR IP (fenêtre FAIL_WINDOW) avant ban
 BAN_SECONDS = 30        # durée du 1er ban — doublée à chaque récidive
 FAIL_WINDOW = 600       # fenêtre de cumul des échecs : 10 min
@@ -755,7 +755,8 @@ async def main():
         await server.serve_forever()
 
 
-try:
-    asyncio.run(main())
-except KeyboardInterrupt:
-    print("\n[RemotePad] Arrêt.")
+if __name__ == "__main__":  # srv-v14.5 : indispensable pour importer server.py dans les tests (pytest) sans lancer le serveur
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n[RemotePad] Arrêt.")
