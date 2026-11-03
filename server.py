@@ -15,8 +15,10 @@ Résumé des fonctionnalités :
 - Clavier : saisie Unicode via KEYEVENTF_UNICODE (accents, emoji), \\n = Shift+Entrée.
 - Média : volume, muet, play/pause, piste précédente/suivante.
 - Raccourcis : Copier/Coller/Couper/Ctrl+Z (et Ctrl+A/Ctrl+Y), onglets
-  navigateur (Ctrl+Tab), Alt+Tab (bascule fenêtre), touche Windows —
-  appuis simultanés de modificateurs en UNE salve SendInput atomique.
+  navigateur (Ctrl+Tab), Alt+Tab (bascule fenêtre), touche Windows,
+  Win+A/Tab/I/E (réglages rapides, vue des tâches, Paramètres,
+  explorateur — srv-v14.8) — appuis simultanés de modificateurs en UNE
+  salve SendInput atomique.
 - Aperçu écran : capture (mss) → JPEG (Pillow) → base64, envoyé sur
   demande au client concerné (jamais en continu).
 - Latence : ping/pong (uniquement après authentification).
@@ -38,7 +40,7 @@ import threading
 import os
 
 CODE = "".join(secrets.choice(string.digits) for _ in range(6))
-SERVER_VERSION = "srv-v14.6"
+SERVER_VERSION = "srv-v14.8"   # v14.8 : raccourcis wintab (Win+Tab) / params (Win+I) / explorer (Win+E) pour les gestes « relâché long » du client v44
 MAX_ATTEMPTS = 3        # échecs cumulés PAR IP (fenêtre FAIL_WINDOW) avant ban
 BAN_SECONDS = 30        # durée du 1er ban — doublée à chaque récidive
 FAIL_WINDOW = 600       # fenêtre de cumul des échecs : 10 min
@@ -384,6 +386,8 @@ VK_KEY_V = 0x56
 VK_KEY_X = 0x58
 VK_KEY_W = 0x57
 VK_KEY_T = 0x54
+VK_KEY_I = 0x49        # srv-v14.8 : Win+I (Paramètres Windows)
+VK_KEY_E = 0x45        # srv-v14.8 : Win+E (Explorateur de fichiers)
 VK_TAB = 0x09
 VK_LWIN = 0x5B
 VK_LEFT = 0x25         # flèche gauche — touche ÉTENDUE : drapeau KEYEVENTF_EXTENDEDKEY obligatoire
@@ -421,7 +425,10 @@ def do_shortcut(sid):
     tabprev/tabnext (onglets navigateur), closetab (fermer l'onglet, Ctrl+W),
     reopen (réouvrir le dernier onglet fermé, Ctrl+Maj+T), alttab (bascule
     fenêtre), winkey (Démarrer), back/fwd (page précédente/suivante,
-    Alt+flèches), settings (réglages rapides, Win+A), left/right (reculer/
+    Alt+flèches), settings (réglages rapides, Win+A), wintab (vue des
+    tâches, Win+Tab — srv-v14.8), params (Paramètres Windows, Win+I —
+    srv-v14.8), explorer (Explorateur de fichiers, Win+E — srv-v14.8),
+    left/right (reculer/
     avancer la bande son : commande shell WM_APPCOMMAND en priorité,
     flèche étendue en repli — srv-v14.3)."""
     table = {
@@ -440,6 +447,9 @@ def do_shortcut(sid):
         "back":     lambda: key_combo([VK_MENU], VK_LEFT, vk_extended=True),
         "fwd":      lambda: key_combo([VK_MENU], VK_RIGHT, vk_extended=True),
         "settings": lambda: key_combo([VK_LWIN], VK_KEY_A),
+        "wintab":   lambda: key_combo([VK_LWIN], VK_TAB),     # srv-v14.8 : vue des tâches — relâché long du bouton Démarrer
+        "params":   lambda: key_combo([VK_LWIN], VK_KEY_I),   # srv-v14.8 : Paramètres Windows — appui court ou relâché long de ⚙
+        "explorer": lambda: key_combo([VK_LWIN], VK_KEY_E),    # srv-v14.8 : Explorateur de fichiers — relâché long du titre RemotePad
         "left":     lambda: (app_command(APPCOMMAND_MEDIA_REWIND) or key_press(VK_LEFT, extended=True)),
         "right":    lambda: (app_command(APPCOMMAND_MEDIA_FASTFORWARD) or key_press(VK_RIGHT, extended=True)),
     }
@@ -463,6 +473,11 @@ except ImportError:
 CAPTURE_MIN_INTERVAL = 1.0    # secondes entre deux aperçus 'g' (srv-v14.4)
 capture_state = {"last": 0.0}  # dict mutable : pas de mot-clé global dans le handler
 
+# srv-v14.7 : mss ≥ 10 déprécie la fabrique mss.mss (DeprecationWarning à
+# CHAQUE capture — visible dans le terminal) ; MSS est le remplacement
+# officiel. Repli pour les vieilles versions de mss où seule mss.mss existe.
+_MSS = getattr(mss, "MSS", None) or mss.mss
+
 def grab_screen():
     """Capture l'écran principal → JPEG base64 (largeur max 480 px, ~50 Ko).
 
@@ -474,7 +489,7 @@ def grab_screen():
     # requêtes trop rapprochées sont ignorées silencieusement (le client
     # retapera l'aperçu). Le pointeur est posé AVANT la capture : le temps
     # de traitement de la capture ne compte pas dans l'intervalle.
-    with mss.mss() as sct:
+    with _MSS() as sct:   # srv-v14.7 : MSS (mss.mss déprécié — plus de DeprecationWarning à chaque capture)
         monitor = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
         shot = sct.grab(monitor)
         img = Image.frombytes('RGB', shot.size, shot.rgb, 'raw', 'RGB', shot.size[0] * 3)
@@ -507,6 +522,27 @@ async def broadcast_device_count():
             authorized.discard(client)
 
 
+async def send_preview(websocket):
+    """srv-v14.7 : capture d'aperçu HORS du fil des messages.
+
+    Le handler traite les messages SÉQUENTIELLEMENT (async for) : pendant une
+    capture, le « ping » du client restait en file et le « pong » partait en
+    retard — le watchdog client (4 s) coupait alors une connexion parfaitement
+    saine (scénario observé : déconnexion au moment d'un aperçu). La capture
+    part désormais en tâche : le ping est répondu immédiatement, le client
+    traite en plus tout message entrant comme preuve de vie (v42).
+    """
+    try:
+        data = await asyncio.get_running_loop().run_in_executor(None, grab_screen)
+        await websocket.send("i" + data)
+    except Exception as exc:
+        print(f"[RemotePad] Aperçu : échec de la capture — {exc!r}")
+        try:
+            await websocket.send("i!")   # jamais d'échec silencieux (le socket peut être déjà fermé)
+        except Exception:
+            pass
+
+
 async def handler(websocket):
     ip = client_ip(websocket)
     purge_expired()   # srv-v14.4 : ban/échecs/récidives périmés ne s'accumulent plus
@@ -514,8 +550,11 @@ async def handler(websocket):
     if time.time() < until:
         # IP bannie : message explicite (le téléphone affiche le motif au
         # lieu de boucler en reconnexion) puis fermeture.
+        # srv-v14.7 : durée RESTANTE transmise (« banned:<s> ») — le client
+        # suspend sa reconnexion jusqu'à expiration au lieu de boucler
+        # « Déconnecté — reconnexion… » pendant tout le ban.
         try:
-            await websocket.send("banned")
+            await websocket.send(f"banned:{max(0, int(until - time.time()))}")
         except Exception:
             pass
         await websocket.close(code=1008, reason="banni")
@@ -550,11 +589,16 @@ async def handler(websocket):
                     # Échec : cumul PAR IP (fenêtre glissante) — répartir
                     # les essais sur plusieurs connexions ne contourne
                     # plus le ban (srv-v14, audit P1).
+                    # srv-v14.7 : log explicite — le code refusé est presque
+                    # toujours un QR PÉRIMÉ (serveur relancé entre-temps),
+                    # l'utilisateur doit scanner le QR affiché sur le PC.
+                    print(f"[RemotePad] Code refusé — {ip} (QR périmé ? "
+                          f"rescannez le QR affiché sur le PC)")
                     if record_failure(ip):
                         duration = ban_ip(ip)
                         print(f"[RemotePad] {ip} banni {duration:.0f}s "
                               f"({MAX_ATTEMPTS} échecs cumulés, ban n°{strikes[ip]})")
-                        await websocket.send("banned")
+                        await websocket.send(f"banned:{duration:.0f}")   # srv-v14.7 : durée restante — le client suspend sa reconnexion au lieu de boucler
                         await websocket.close(code=1008, reason="banned")
                         return
                     await websocket.send("error")
@@ -642,12 +686,7 @@ async def handler(websocket):
                 if not SCREEN_PREVIEW_OK:
                     await websocket.send("i!")
                 else:
-                    try:
-                        data = await asyncio.get_running_loop().run_in_executor(None, grab_screen)
-                        await websocket.send("i" + data)
-                    except Exception as exc:
-                        print(f"[RemotePad] Aperçu : échec de la capture — {exc!r}")
-                        await websocket.send("i!")
+                    asyncio.create_task(send_preview(websocket))   # srv-v14.7 : hors du fil — le ping/pong ne patiente plus derrière la capture
             elif cmd == "x":
                 # Extinction / redémarrage / veille — confirmées côté client avant envoi.
                 # shutdown : délai 5 s (annulable sur le PC via `shutdown /a`).
