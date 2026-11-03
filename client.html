@@ -324,16 +324,22 @@
            (appui court, tick de répétition — 340 ms) et intense (appui long —
            580 ms, onde plus ample). @property rend l'angle animable ; sans
            support (très vieux Chrome), l'opacité anime seule — dégradation
-           propre, le halo reste visible. */
+           propre, le halo reste visible. v48 : réglage plus subtil (glow
+           transparent réduit, anneau 2px, pics 0.4/0.65, 280/520 ms). */
+        /* v48 : halo PLUS SUBTIL — l'ancien réglage v45 (glow 14px/32px à
+           opacité pleine) éclaireait trop en usage nocturne ; le glow est
+           réduit ET transparent (color-mix), l'anneau passe à 2px et ne dépasse
+           plus 40 % (léger) / 65 % (intense) d'opacité — la hiérarchie
+           léger < intense reste lisible. */
         @property --halo-s { syntax: '<angle>'; inherits: false; initial-value: 12deg; }
-        .track-area.halo { border-color: var(--accent); box-shadow: 0 0 14px -2px var(--accent); }
-        .track-area.halo-strong { border-color: var(--accent); box-shadow: 0 0 32px 0 var(--accent); }
+        .track-area.halo { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 8px -6px color-mix(in srgb, var(--accent) 55%, transparent); }
+        .track-area.halo-strong { border-color: color-mix(in srgb, var(--accent) 80%, transparent); box-shadow: 0 0 16px -4px color-mix(in srgb, var(--accent) 70%, transparent); }
         .track-area::after {
             content: '';
             position: absolute;
             inset: 0;
             border-radius: var(--radius);
-            border: 3px solid transparent;   /* épaisseur de l'anneau lumineux */
+            border: 2px solid transparent;   /* v48 : anneau aminci (3px → 2px), plus discret */
             pointer-events: none;
             background: conic-gradient(from calc(180deg - var(--halo-s)) at 50% 50%,
                                         var(--accent) 0deg,
@@ -345,14 +351,86 @@
             mask-composite: exclude;
             opacity: 0;
         }
+        /* v48 : pics d'opacité abaissés (1 → 0.4 léger / 0.65 intense) et durées
+           raccourcies — l'onde reste perceptible mais n'illumine plus la pièce. */
         @keyframes halo-rise {
             0%   { opacity: 0; --halo-s: 12deg; }   /* point lumineux au BAS */
-            12%  { opacity: 1; }
-            72%  { opacity: 1; }
+            14%  { opacity: 0.4; }
+            70%  { opacity: 0.4; }
             100% { opacity: 0; --halo-s: 180deg; }  /* l'anneau est remonté jusqu'en haut */
         }
-        .track-area.halo::after        { animation: halo-rise 340ms ease-out; }
-        .track-area.halo-strong::after { animation: halo-rise 580ms ease-out; }
+        @keyframes halo-rise-strong {
+            0%   { opacity: 0; --halo-s: 12deg; }
+            10%  { opacity: 0.65; }
+            74%  { opacity: 0.65; }
+            100% { opacity: 0; --halo-s: 180deg; }
+        }
+        .track-area.halo::after        { animation: halo-rise 280ms ease-out; }
+        .track-area.halo-strong::after { animation: halo-rise-strong 520ms ease-out; }
+
+        /* v49 : feedback visuel enrichi — 3 calques fixed (coordonnées viewport,
+           identiques pour trackpad, roues et titre) + toast d'action.
+           Z-index 150 : au-dessus des roues (120), sous les modales (200+). */
+        .tap-ripple, .pick-wave, .hold-ring {
+            position: fixed;
+            z-index: 150;
+            pointer-events: none;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        /* v49 D : ripple au POINT de tap — le halo dit « un tap a eu lieu »,
+           le ripple dit « ici, et c'est capté » */
+        .tap-ripple {
+            width: 14px; height: 14px;
+            border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+            animation: tap-ripple 300ms ease-out forwards;
+        }
+        @keyframes tap-ripple { from { opacity: 0.5; scale: 1; } to { opacity: 0; scale: 5; } }
+        /* v49 F : onde localisée au pick — part DU picto choisi, lie cause et
+           effet spatialement (remplace le halo générique sur les picks) */
+        .pick-wave {
+            width: 26px; height: 26px;
+            border: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
+            animation: pick-wave 480ms ease-out forwards;
+        }
+        @keyframes pick-wave { 0% { opacity: 0.65; scale: 0.4; } 30% { opacity: 0.65; } 100% { opacity: 0; scale: 3.2; } }
+        /* v49 E : anneau d'armement des appuis longs — se remplit pendant le
+           seuil, on VOIT quand le geste va basculer (fini les faux appuis subis) */
+        .hold-ring { width: 56px; height: 56px; }
+        .hold-ring svg { display: block; }
+        .hold-ring circle {
+            fill: none;
+            stroke: color-mix(in srgb, var(--accent) 75%, transparent);
+            stroke-width: 3;
+            stroke-dasharray: 157;      /* 2πr, r = 25 */
+            stroke-dashoffset: 157;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            animation: hold-fill linear forwards;   /* durée posée en JS = seuil exact */
+        }
+        @keyframes hold-fill { from { stroke-dashoffset: 157; } to { stroke-dashoffset: 0; } }
+        /* v49 G : toast d'action — confirme QUELLE action est partie, pas
+           seulement qu'une action est partie (relâchés longs, réglages) */
+        #action-toast {
+            position: fixed;
+            top: 54px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 150;
+            max-width: 86vw;
+            padding: 6px 16px;
+            border-radius: 99px;
+            background: color-mix(in srgb, var(--surface) 92%, transparent);
+            color: var(--fg);
+            border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+            font-size: 0.82rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease;
+        }
+        #action-toast.show { opacity: 1; }
 
             .track-area.disabled {
                 opacity: 0.35;
@@ -878,7 +956,7 @@
                 <div class="hdr-btn" id="power-btn" role="button" aria-label="Menu Démarrer — appui long : éteindre, redémarrer, veille ; relâché sans glisser : vue des tâches (Win+Tab)" title="Menu Démarrer — appui court, appui long = roue extinction, relâché sans glisser = vue des tâches (Win+Tab)"></div>
                 <div class="hdr-btn" id="tool-btn" role="button" aria-label="Outils — appui court ou relâché long sans glisser : Paramètres Windows (Win+I) ; appui long glissé : sensibilité, défilement, vibrations" title="Paramètres (Win+I) — appui court ou relâché long sans glisser ; roue outils par glisser à l'appui long"></div>
             </div>
-            <h1 id="app-title" role="button" aria-label="RemotePad — appui long : Explorateur de fichiers (Win+E)" title="Appui long puis relâcher = Explorateur de fichiers (Win+E)">RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v47</span></h1>
+            <h1 id="app-title" role="button" aria-label="RemotePad — appui long : Explorateur de fichiers (Win+E)" title="Appui long puis relâcher = Explorateur de fichiers (Win+E)">RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v49</span></h1>
         </div>
         <div class="track-area" id="track-area">
             <canvas id="trackpad-canvas"></canvas>
@@ -911,6 +989,7 @@
             <div class="fader-knob" id="sens-knob"></div>
         </div>
         <div class="preview-overlay" id="preview-overlay"><img id="preview-img" alt="Écran du PC"></div>
+        <div id="action-toast" aria-live="polite"></div>   <!-- v49 G : toast d'action (relâchés longs, réglages) -->
         <div class="confirm-overlay" id="confirm-overlay">
             <div class="confirm-box">
                 <div id="confirm-text"></div>
@@ -959,10 +1038,10 @@ let pingTimer = null;
 const canvas = document.getElementById('trackpad-canvas');
 const trackArea = document.getElementById('track-area');   // v28 : trace orange en drag
 
-// v45/v46 : halo de validation — une ONDE lumineuse part du BAS du trackpad et
+// v45/v46/v48 : halo de validation — une ONDE lumineuse part du BAS du trackpad et
 // remonte les deux côtés (animation CSS `halo-rise`, anneaux conic-gradient) ;
-// v46 : les durées de classe couvrent l'animation complète (340 ms léger,
-// 580 ms intense) pour que l'onde ait le temps de FINIR sa remontée.
+// v48 : pics d'opacité 0.4 (léger, 280 ms) / 0.65 (intense, 520 ms) et glows
+// réduits — le halo reste lisible mais discret.
 // Utile quand on ne sent pas la vibration : environnement bruyant, vibrations
 // coupées, diagnostic des faux clics.
 let clickFlashTimer = null;
@@ -972,7 +1051,48 @@ function halo(strong) {
           const cls = strong ? 'halo-strong' : 'halo';
           trackArea.classList.add(cls);
           if (clickFlashTimer) clearTimeout(clickFlashTimer);
-          clickFlashTimer = setTimeout(() => trackArea.classList.remove(cls), strong ? 590 : 350);
+          clickFlashTimer = setTimeout(() => trackArea.classList.remove(cls), strong ? 530 : 290);   // v48 : durées raccourcies avec l'animation
+}
+
+// v49 : TOAST d'action — confirme QUELLE action est partie (relâchés longs,
+// réglages). Double canal haptique+visuel sans occuper l'écran : 1,4 s puis fade.
+let toastTimer = null;
+function showToast(txt) {
+          const el = document.getElementById('action-toast');
+          el.textContent = txt;
+          el.classList.add('show');
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+// v49 D/F : ONDE LOCALISÉE au point de contact — tap (ripple discret) ou pick de
+// roue (onde ample qui part DU picto choisi). Coordonnées viewport (fixed).
+function rippleAt(x, y, wave) {
+          const el = document.createElement('div');
+          el.className = wave ? 'pick-wave' : 'tap-ripple';
+          el.style.left = x + 'px';
+          el.style.top = y + 'px';
+          document.body.appendChild(el);
+          el.addEventListener('animationend', () => el.remove());   // auto-nettoyage
+}
+
+// v49 E : ANNEAU D'ARMEMENT des appuis longs — se remplit pendant le seuil exact
+// (durée posée en JS), on voit quand le geste va basculer. Un seul anneau à la
+// fois : tout nouvel armement remplace le précédent.
+let holdRingEl = null;
+function showHoldRing(x, y, ms) {
+          hideHoldRing();
+          const el = document.createElement('div');
+          el.className = 'hold-ring';
+          el.style.left = x + 'px';
+          el.style.top = y + 'px';
+          el.innerHTML = '<svg viewBox="0 0 56 56" width="56" height="56"><circle cx="28" cy="28" r="25"/></svg>';
+          el.querySelector('circle').style.animationDuration = ms + 'ms';
+          document.body.appendChild(el);
+          holdRingEl = el;
+}
+function hideHoldRing() {
+          if (holdRingEl) { holdRingEl.remove(); holdRingEl = null; }
 }
 const ctx = canvas.getContext('2d');
 let lastX = 0, lastY = 0, lastT = 0;
@@ -1058,6 +1178,13 @@ if (window.visualViewport) {
 window.addEventListener('resize', adjustToVirtualKeyboard);
 
 let vibEnabled = localStorage.getItem('vib') !== '0';   // v34 : vibrations configurables (roue ⚙) — actives par défaut
+// v49 A : INTENSITÉ HAPTIQUE réglable (roue ⚙, item « Intensité ») — la
+// perception varie d'un vibreur et d'un téléphone à l'autre ; un multiplicateur
+// appliqué à TOUTE l'échelle garantit « ça se sent » sans sur-régler pour tous.
+const HAPTIC_GAINS = [0.7, 1, 1.5];
+const HAPTIC_GAIN_NAMES = ['subtile', 'standard', 'renforcée'];
+let hapticGain = parseInt(localStorage.getItem('hapticgain') || '1', 10);   // persistant, standard par défaut
+if (!(hapticGain >= 0 && hapticGain <= 2)) hapticGain = 1;
 // v47 : BUG CORRIGÉ — les vibrations appelées depuis un handler `touchend` sont
 // SUPPRIMÉES par Chrome Android : aucune validation de RELÂCHEMENT ne se faisait
 // sentir (sélection de picto, tap, clic droit, relâché long) ; seules vibraient
@@ -1066,7 +1193,9 @@ let vibEnabled = localStorage.getItem('vib') !== '0';   // v34 : vibrations conf
 // setTimeout(0) — il sort du handler d'événement et n'est plus supprimé.
 function vibrate(ms) {
           if (!vibEnabled || !navigator.vibrate) return;
-          setTimeout(() => navigator.vibrate(ms), 0);
+          const g = HAPTIC_GAINS[hapticGain];   // v49 : l'échelle est multipliée par le gain réglé
+          const scaled = Array.isArray(ms) ? ms.map(v => Math.round(v * g)) : Math.round(ms * g);
+          setTimeout(() => navigator.vibrate(scaled), 0);
 }
 // v47 : échelle haptique revue selon le ressenti réel et la spécification de
 // l'utilisateur — les niveaux comptent des PULSES (1 forte, 1 courte,
@@ -1148,7 +1277,7 @@ function connect() {
               // Appairage automatique : le token est dans le hash de l'URL (#CODE)
               const token = location.hash.slice(1);
               if (/^\d{6}$/.test(token)) {
-                ws.send('join:' + token + ':v47');
+                ws.send('join:' + token + ':v49');
               } else {
                 setStatus('Ouvrez RemotePad via le QR code affiché sur le PC', false);
               }
@@ -1335,7 +1464,9 @@ canvas.addEventListener('touchstart', (e) => {
           }
           dragFromTap = false;
           dragTapStarted = false;
+          showHoldRing(e.touches[0].clientX, e.touches[0].clientY, LONG_PRESS_MS);   // v49 E : l'anneau se remplit pendant l'armement du clic droit (750 ms) — on voit quand le geste va basculer
           longPressTimer = setTimeout(() => {
+            hideHoldRing();   // v49 E : seuil atteint ou contact déplacé — l'anneau a fini son rôle
             if (touchMoved || touchMovedDistance >= 8) return;
             isLongPress = true;
             vibrate(HAPTIC.tick);   // v46 : l'appui long est ARMÉ · v47 — information, pas validation
@@ -1384,7 +1515,7 @@ canvas.addEventListener('touchmove', (e) => {
           const dy = p.y - lastY;
           const dist = Math.hypot(dx, dy);
           touchMovedDistance += dist;
-          if (touchMovedDistance > TAP_MOVE_THRESHOLD) touchMoved = true;
+          if (!touchMoved && touchMovedDistance > TAP_MOVE_THRESHOLD) { touchMoved = true; hideHoldRing(); }   // v49 E : le contact devient un glisser — l'anneau d'armement n'a plus de sens
           if (isLongPress && touchMovedDistance > 8 && !isDragging) {   // v39 : le gauche s'enfonce ICI, au 1er mouvement (et pas à 750 ms)
             isDragging = true;   // appui long + mouvement = drag
             leftHeld = true;
@@ -1416,6 +1547,7 @@ canvas.addEventListener('touchmove', (e) => {
 canvas.addEventListener('touchend', (e) => {
           e.preventDefault();
           if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          hideHoldRing();   // v49 E : le contact s'achève — jamais d'anneau orphelin
           if (flushTimeout) { clearTimeout(flushTimeout); flushTimeout = null; }
           flushMove();
           const now = performance.now();
@@ -1442,6 +1574,9 @@ canvas.addEventListener('touchend', (e) => {
               vibrate(HAPTIC.dbl);   // v47 : clic droit = 2 vibrations courtes (spec utilisateur) — le relâchement vibre ENFIN (bug touchend corrigé)
               ws.send('b2;1'); ws.send('b2;0');
               halo(false);   // v45 : geste bref → halo léger (le clic droit d'appui long, lui, a le halo intense)
+              let rx = 0, ry = 0;   // v49 D : ripple au point médian du tap 2 doigts
+              for (const t of e.changedTouches) { rx += t.clientX; ry += t.clientY; }
+              rippleAt(rx / e.changedTouches.length, ry / e.changedTouches.length);
             }
             return;
           }
@@ -1471,12 +1606,14 @@ canvas.addEventListener('touchend', (e) => {
             lastTapX = lastX; lastTapY = lastY;
             vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47
             halo(false);   // v45 : halo léger — tap cumulé = un clic comme un autre
+            rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);   // v49 D : ripple au point du tap
           } else if (wasLongPress) {
             // v39 : clic droit PUR — le gauche n'a jamais été enfoncé, aucun
             // b0;0 à envoyer (jamais d'UP orphelin : la règle d'or du serveur)
             ws.send('b2;1'); ws.send('b2;0');    // clic droit atomique
             vibrate(HAPTIC.dbl);                         // v47 : clic droit = 2 vibrations courtes, comme le 2 doigts — le relâchement vibre ENFIN (bug touchend corrigé)
             halo(true);                          // v45 : APPUI LONG → halo intense, comme les autres validations longues
+            rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);   // v49 D : le clic droit d'appui long valide AUSSI au point de contact
           } else if (touchMoved) {
             // mouvement simple : rien à relâcher
           } else {
@@ -1487,12 +1624,14 @@ canvas.addEventListener('touchend', (e) => {
             lastTapX = lastX; lastTapY = lastY;
             vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47
             halo(false);   // v45 : halo léger — validation visible de chaque tap simple
+            rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);   // v49 D : le ripple dit OÙ le tap a été capté
           }
 }, { passive: false });
 
 canvas.addEventListener('touchcancel', (e) => {
           e.preventDefault();
           if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          hideHoldRing();   // v49 E : contact annulé — jamais d'anneau orphelin
           if (flushTimeout) { clearTimeout(flushTimeout); flushTimeout = null; }
           flushMove();
           isLongPress = false;
@@ -1875,6 +2014,7 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
             if (timer) clearTimeout(timer);
             if (labelTimer) clearTimeout(labelTimer);
             stopHold();
+            hideHoldRing();   // v49 E : l'armement est annulé, quel que soit le chemin — jamais d'anneau orphelin
             timer = null; labelTimer = null; wheel = null; items = null; pos = null; activeIdx = -1; picked = null; heldFired = 0; activeAnchor = null; movedOut = false;
           };
           const forceClose = () => { if (wheel) wheel.remove(); reset(); };
@@ -1882,8 +2022,10 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
           btn.addEventListener('touchstart', (e) => {
             e.stopPropagation();
             reset();
+            showHoldRing(e.touches[0].clientX, e.touches[0].clientY, WHEEL_OPEN_MS);   // v49 E : l'anneau se remplit pendant le seuil d'ouverture (380 ms) — on voit quand la roue va s'ouvrir
             timer = setTimeout(() => {
               timer = null;
+              hideHoldRing();   // v49 E : seuil atteint — la roue s'ouvre, l'anneau a fini son rôle
               items = getItems();
               const r = btn.getBoundingClientRect();
               const n = items.length;
@@ -2029,12 +2171,13 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
             e.stopPropagation();
             if (wheel) {
               if (picked) {
-                if (!heldFired) { onPick(picked.id); vibrate(HAPTIC.short); halo(true); }   // v47 : relâchement sur le picto choisi = 1 vibration COURTE (sélection de l'action principale du picto) — avant : forte, mais AUCUNE vibration ne partait (bug touchend : vibrate() supprimé dans le handler) · v45 : halo intense
+                if (!heldFired) { onPick(picked.id); vibrate(HAPTIC.short); rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY, true); }   // v47 : relâchement sur le picto choisi = 1 vibration COURTE (sélection de l'action principale du picto) — avant : forte, mais AUCUNE vibration ne partait (bug touchend : vibrate() supprimé dans le handler) · v49 F : l'onde lumineuse part DU picto choisi (lie cause et effet), remplaçant le halo générique
                 else vibrate(HAPTIC.tick);   // v38 : fin de hold — confirme l'arrêt de la répétition (avant : silence total au relâchement d'un secteur hold) · v47
               } else if (o.onLongRelease && !movedOut) {
                 o.onLongRelease();   // v44 : roue ouverte puis relâchée SUR PLACE = raccourci dédié de l'ancre (⊞ vue des tâches, ⚙ Paramètres, loupe réglages rapides) — l'annulation reste possible : glisser hors de l'arc puis relâcher
                 vibrate(HAPTIC.short);   // v47 : relâchement long = 1 vibration COURTE (l'action secondaire du picto est validée) — la vibration FORTE a eu lieu à l'OUVERTURE de la roue
                 halo(true);   // v45 : relâché long → halo intense
+                if (o.longLabel) showToast(o.longLabel);   // v49 G : le toast dit QUELLE action est partie, pas seulement qu'une action est partie
               }
               forceClose();
             } else if (timer) {   // appui court = action prédite par l'ancre
@@ -2172,6 +2315,12 @@ function toolPick(id) {
             // v46 : plus de vibration interne — le moteur valide le pick : silencieuse si on vient de couper, forte si on vient de réactiver
             return;
           }
+          if (id === 'hapt') {                                      // v49 A : intensité haptique (persistant) — cycle subtile → standard → renforcée
+            hapticGain = (hapticGain + 1) % HAPTIC_GAINS.length;
+            localStorage.setItem('hapticgain', String(hapticGain));
+            showToast('Haptique ' + HAPTIC_GAIN_NAMES[hapticGain]);   // v49 G : le niveau atteint s'affiche — le picto ne changerait pas d'aspect
+            return;
+          }
 }
 
 makeWheelAnchor('tool-btn',
@@ -2179,10 +2328,11 @@ makeWheelAnchor('tool-btn',
             { id: 'sens',   icon: ICONS.sens,   label: 'Sensibilité' },   // v37 : raccourci (avant « Sensibilité du Trackpad ») — max-content (v31) garantit qu'elle ne peut plus se couper
             { id: 'scroll', icon: ICONS.scroll, label: scrollInvert ? 'Défilement inversé' : 'Défilement naturel' },   // v35 : libellé essentiel — l'état suffit, « toucher pour… » était évident et trop long
             { id: 'vib',    icon: ICONS.vibrate, label: vibEnabled ? 'Vibrations actives' : 'Vibrations coupées' },   // v35 : libellé essentiel
+            { id: 'hapt',   icon: ICONS.vibrate, label: 'Intensité : ' + HAPTIC_GAIN_NAMES[hapticGain] },   // v49 A : cycle subtile/standard/renforcée — le niveau courant se lit au libellé, le suivant s'annonce en toast
           ],
           toolPick,
           () => { if (connected) { ws.send('cparams'); vibrate(HAPTIC.short); } },   // v46 : validation d'appui court · v47 · v44 : appui court = Paramètres Windows (Win+I, srv-v14.8) — Win+A (réglages rapides) déménage sur le relâché long de la loupe
-          { corner: 'tr', onLongRelease: () => { if (connected) ws.send('cparams'); } }   // v44 : relâché sur place = Paramètres (Win+I), même destination que l'appui court · ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
+          { corner: 'tr', onLongRelease: () => { if (connected) ws.send('cparams'); }, longLabel: 'Paramètres Windows (Win+I)' }   // v49 G : toast du nom de l'action · v44 : relâché sur place = Paramètres (Win+I), même destination que l'appui court · ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
 );
 
 // --- v35 : Ancre Accessibilité (haut GAUCHE) — roue dédiée : dark/light mode, mode
@@ -2217,7 +2367,7 @@ makeWheelAnchor('access-btn',
             applyAccessMode();
             vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47
           },
-          { corner: 'tl', onLongRelease: () => { if (connected) ws.send('csettings'); } }   // v44 : relâché sur place = réglages rapides Windows (Win+A) — l'action déménage de l'appui court de ⚙ · v35 : ancre d'angle haut-GAUCHE — demi arc descendant vers le bas-droite
+          { corner: 'tl', onLongRelease: () => { if (connected) ws.send('csettings'); }, longLabel: 'Réglages rapides Windows (Win+A)' }   // v49 G : toast du nom de l'action · v44 : relâché sur place = réglages rapides Windows (Win+A) — l'action déménage de l'appui court de ⚙ · v35 : ancre d'angle haut-GAUCHE — demi arc descendant vers le bas-droite
 );
 
 // --- Ancre extinction : appui court = Menu Démarrer, roue = éteindre/redémarrer/veille ---
@@ -2256,7 +2406,7 @@ makeWheelAnchor('power-btn',
             askConfirm(labels[id], () => { if (connected) { ws.send('x' + id); } });   // v40 : l'haptique de validation vit sur le bouton Confirmer (20 ms)
           },
           () => { if (connected) { ws.send('cwinkey'); vibrate(HAPTIC.short); } },   // v46 : validation d'appui court · v47
-          { corner: 'tr', onLongRelease: () => { if (connected) ws.send('cwintab'); } }   // v44 : relâché sur place = vue des tâches (Win+Tab, srv-v14.8) — l'extinction reste par glisser dans la roue · ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
+          { corner: 'tr', onLongRelease: () => { if (connected) ws.send('cwintab'); }, longLabel: 'Vue des tâches (Win+Tab)' }   // v49 G : toast du nom de l'action · v44 : relâché sur place = vue des tâches (Win+Tab, srv-v14.8) — l'extinction reste par glisser dans la roue · ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
 );
 
 // --- Aperçu de l'écran du PC (tap n'importe où pour fermer) ---
@@ -2325,12 +2475,13 @@ makeWheelAnchor('window-title',
 const appTitleEl = document.getElementById('app-title');
 (function () {
           let t = null, armed = false, sx = 0, sy = 0;
-          const cancel = () => { if (t) clearTimeout(t); t = null; armed = false; };
+          const cancel = () => { if (t) clearTimeout(t); t = null; armed = false; hideHoldRing(); };   // v49 E : annulation → jamais d'anneau orphelin
           appTitleEl.addEventListener('touchstart', (e) => {
             e.preventDefault();   // un appui long sur du texte ne doit ni le sélectionner ni ouvrir un menu contextuel
             cancel();
             sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-            t = setTimeout(() => { armed = true; vibrate(HAPTIC.strong); }, WHEEL_OPEN_MS);   // v47 : seuil franchi = 1 vibration FORTE (l'action secondaire est engagée) · v44 : même seuil que les roues — le buzz dit « relâchez »
+            showHoldRing(sx, sy, WHEEL_OPEN_MS);   // v49 E : l'anneau se remplit pendant le seuil du titre — on voit quand l'explorateur va s'armer
+            t = setTimeout(() => { armed = true; hideHoldRing(); vibrate(HAPTIC.strong); }, WHEEL_OPEN_MS);   // v47 : seuil franchi = 1 vibration FORTE (l'action secondaire est engagée) · v49 E : anneau levé au seuil · v44 : même seuil que les roues — le buzz dit « relâchez »
           }, { passive: false });
           appTitleEl.addEventListener('touchmove', (e) => {
             if (Math.hypot(e.touches[0].clientX - sx, e.touches[0].clientY - sy) > 15) cancel();   // v44 : jitter toléré (15 px) — un vrai glisser annule
@@ -2339,7 +2490,2603 @@ const appTitleEl = document.getElementById('app-title');
             e.preventDefault();
             const was = armed;
             cancel();
-            if (was && connected) { ws.send('cexplorer'); vibrate(HAPTIC.short); halo(true); }   // v47 : 1 vibration COURTE au relâchement (l'action est validée — la FORTE a eu lieu au seuil) · v45 : halo intense
+            if (was && connected) { ws.send('cexplorer'); vibrate(HAPTIC.short); halo(true); showToast('Explorateur de fichiers (Win+E)'); }   // v47 : 1 vibration COURTE au relâchement (l'action est validée — la FORTE a eu lieu au seuil) · v49 G : toast du nom de l'action · v45 : halo intense
+          }, { passive: false });
+          appTitleEl.addEventListener('touchcancel', cancel, { passive: true });
+})();
+
+function toggleTheme() {
+          document.body.classList.toggle('light');
+          localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+}
+if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+
+// --- Tutoriel : 3 gestes à la première connexion (v26, audit P2) ---
+// Se déclenche à l'appairage si 'onboarded' est absent du localStorage ;
+// rejouable à volonté depuis la roue Accessibilité (item « Tutoriel » — v35/v37).
+// v27 : jamais bloquant — croix ✕, ou un simple doigt posé sur le
+// touchpad (l'overlay le recouvre) referme le tutoriel.
+// Les textes utilisent des template literals (vrais sauts de ligne),
+// affichés via white-space: pre-line.
+const ONBOARD_STEPS = [
+  { t: 'Déplacer et cliquer',
+    d: `Glissez un doigt = déplacer le curseur.
+Tap = clic gauche · tap-tap = double-clic.
+Appui long + glissez = faire glisser un élément.` },
+  { t: 'Appui long = roues d’actions',
+    d: `Chaque bouton du bas (presse-papiers, média, volume, clavier) ouvre sa roue si vous maintenez le doigt :
+glissez vers une action puis relâchez pour l’exécuter.
+Relâcher hors de la roue = annuler.
+Maintenir ⊞, ⚙ ou la loupe puis relâcher sans glisser = raccourci (vue des tâches, Paramètres, réglages rapides).
+Maintenir le titre RemotePad puis relâcher = explorateur de fichiers.` },
+  { t: 'Défilement et onglets',
+    d: `2 doigts = défilement (sens inversable dans la roue Outils).
+Les flèches autour du titre changent de page ou d’onglet.
+Appui long sur le titre = fermer, réouvrir ou changer de fenêtre.` },
+];
+const onboardOverlay = document.getElementById('onboard-overlay');
+let onboardIdx = 0;
+
+function renderOnboard() {
+          const s = ONBOARD_STEPS[onboardIdx];
+          document.getElementById('onboard-title').textContent = s.t;
+          document.getElementById('onboard-text').textContent = s.d;
+          document.getElementById('onboard-dots').innerHTML =
+            ONBOARD_STEPS.map((_, i) => '<span class="' + (i === onboardIdx ? 'on' : '') + '"></span>').join('');
+          document.getElementById('onboard-next').textContent =
+            onboardIdx === ONBOARD_STEPS.length - 1 ? 'C’est parti' : 'Suivant';
+}
+
+function showOnboarding() {
+          onboardIdx = 0;
+          renderOnboard();
+          onboardOverlay.classList.add('visible');
+}
+
+function onboardClose() {
+          onboardOverlay.classList.remove('visible');
+          localStorage.setItem('onboarded', '1');   // vu une fois : plus de tutoriel aux démarrages suivants
+}
+document.getElementById('onboard-x').addEventListener('click', onboardClose);
+// Un doigt posé sur le touchpad (l'overlay le recouvre) referme aussi le
+// tutoriel — jamais bloquant (v27). Un tap DANS la carte (Suivant, ✕ ou
+// le texte) garde son comportement normal. preventDefault évite qu'après
+// la fermeture un clic synthétique frappe un bouton situé dessous.
+const onboardBackdropTap = (e) => {
+          if (e.target.closest && e.target.closest('.onboard-box')) return;
+          e.preventDefault();
+          onboardClose();
+};
+onboardOverlay.addEventListener('touchstart', onboardBackdropTap, { passive: false });
+onboardOverlay.addEventListener('click', onboardBackdropTap);
+
+document.getElementById('onboard-next').addEventListener('click', () => {
+          onboardIdx++;
+          if (onboardIdx >= ONBOARD_STEPS.length) {
+            onboardClose();
+          } else {
+            renderOnboard();
+          }
+});
+
+// --- Chargement des pictos SVG (ancres + flèches d'onglets) ---
+document.getElementById('nav-prev').innerHTML = ICONS.chevL;
+document.getElementById('nav-next').innerHTML = ICONS.chevR;
+document.getElementById('page-prev').innerHTML = ICONS.pageL;
+document.getElementById('page-next').innerHTML = ICONS.pageR;
+document.getElementById('media-btn').innerHTML = ICONS.playpause;
+updateVolIcon();   // picto volume ou muet selon l'état optimiste local
+document.getElementById('power-btn').innerHTML = ICONS.winmenu;
+document.getElementById('tool-btn').innerHTML = ICONS.tools;
+document.getElementById('kbd-btn').innerHTML = ICONS.keyboard;
+
+// v33 : mode Accessibilité — état persistant, appliqué au chargement.
+// v35 : le bouton loupe (haut gauche) devient l'ANCRE du menu Accessibilité :
+// appui court = grossissement (géré par onShort de la roue), appui long = roue.
+const applyAccessMode = () => {
+          const on = localStorage.getItem('access') === '1';
+          document.body.classList.toggle('access', on);
+          document.getElementById('access-btn').classList.toggle('active', on);
+};
+document.getElementById('access-btn').innerHTML = ICONS.access;
+applyAccessMode();
+document.body.classList.toggle('lefty', lefty);   // v34 : mode gaucher persistant, appliqué au chargement
+setClipAnchor(false);
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RemotePad — Client</title>
+    <style>
+        /* v28 : plus de police distante (audit P3, prérequis PWA) — pile
+           système : zéro requête externe, fonctionne hors-ligne. */
+
+        :root {
+            --bg: #07080c;
+            --surface: #0e0e14;
+            --surface-2: #12121a;
+            --fg: #f5f5f7;
+            --fg-muted: #8e8e93;
+            --accent: #7ee787;
+            --radius: 20px;
+        }
+
+        body.light {
+            --bg: #f2f2f7;
+            --surface: #ffffff;
+            --surface-2: #e8e8ed;
+            --fg: #1c1c1e;
+            --fg-muted: #8e8e93;
+            --accent: #2b8a3e;
+            --radius: 20px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background: var(--bg);
+            color: var(--fg);
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100dvh;
+            padding: 10px 14px 8px;
+        }
+
+        .header {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 2px 8px;
+            min-height: 48px;   /* v30 : réserve la hauteur des boutons ⊞/⚙ (44 px + 4 px) — le trackpad démarre SOUS eux, sa bordure haute ne les recouvre plus */
+        }
+
+        .header-side {
+            position: absolute;
+            right: 4px;
+            top: 4px;
+            display: flex;
+            gap: 6px;
+        }
+        .header-side.side-left { right: auto; left: 4px; }   /* v35 : menu Accessibilité en haut à GAUCHE — équilibre les deux demi-arcs */
+        /* ⊞ + ⚙ en haut à DROITE (v20) · loupe Accessibilité en haut à GAUCHE (v35) */
+        .hdr-btn {
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            border-radius: 10px;
+            color: var(--fg);
+            font-size: 1.05rem;
+            /* v26 : zone tactile élargie (audit P2) */
+            width: 44px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s, transform 0.05s;
+        }
+
+            .hdr-btn:active {
+                background: #25252c;
+                transform: translateY(1px);
+            }
+
+            .hdr-btn.active {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+
+        body.light .hdr-btn {
+            border-color: #ccc;
+        }
+
+            body.light .hdr-btn:active {
+                background: #d8d8de;
+            }
+
+        .vol-btn {
+            position: relative;
+            touch-action: none;
+        }
+
+        #media-btn {
+            position: relative;
+            touch-action: none;
+        }
+
+        #clip-btn {
+            position: relative;
+            touch-action: none;
+        }
+
+        .header h1 {
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            font-size: 1.05rem;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .latency {
+            font-size: 0.68rem;
+            color: var(--fg-muted);
+            background: rgba(20,20,26,0.55);
+            padding: 2px 8px;
+            border-radius: 99px;
+            border: 1px solid rgba(255,255,255,0.08);
+            letter-spacing: 0.02em;
+            min-width: 48px;
+            text-align: center;
+            backdrop-filter: blur(4px);
+        }
+
+        body.light .latency {
+            background: rgba(255,255,255,0.6);
+            border-color: rgba(0,0,0,0.08);
+        }
+
+        .window-nav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 7px 2px 0;
+        }
+
+        .nav-arrow {
+            flex: 0 0 auto;
+            /* v26 : zone tactile élargie (audit P2) · v40 : hauteur 36→40 px —
+               les flèches ◀ ▶ ← → gagnent en perceptibilité (retour utilisateur) */
+            width: 44px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: var(--fg-muted);
+            border-radius: 8px;
+            transition: background 0.15s, transform 0.05s;
+            touch-action: none;
+            user-select: none;
+            cursor: pointer;
+        }
+
+            .nav-arrow:active {
+                background: var(--surface-2);
+                transform: scale(0.92);
+            }
+
+        #page-prev, #page-next {
+            color: var(--accent);
+        }
+        /* flèches de page en vert accent (v22) */
+        .window-title {
+            flex: 1 1 auto;
+            font-size: 0.68rem;
+            color: var(--fg-muted);
+            padding: 0 4px 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-height: 16px;
+            text-align: center;
+            transition: color 0.12s, text-shadow 0.12s;
+        }
+
+            .window-title.glow {
+                color: var(--accent);
+                text-shadow: 0 0 10px var(--accent), 0 0 24px rgba(126,231,135,0.5);
+            }
+        /* halo lumineux à l'appui (v22) */
+        .track-status {
+            position: absolute;
+            top: 10px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .devices { font-size: 0.72rem; color: var(--fg-muted); }   /* v33 : « N appareils actifs » (multi-appareils) */
+
+        #status {
+            font-size: 0.72rem;
+            padding: 0;
+            min-height: 0;
+            transition: color 0.2s;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+
+            #status.ok {
+                color: var(--accent);
+            }
+
+            #status.err {
+                color: #ff6b6b;
+            }
+
+            #status .dot {
+                display: inline-block;
+                width: 5px;
+                height: 5px;
+                border-radius: 50%;
+                background: currentColor;
+                margin-right: 5px;
+                vertical-align: middle;
+                opacity: 0.8;
+            }
+
+        body.light #status {
+            text-shadow: none;
+        }
+
+        .action-bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 8px 0 6px;
+        }
+            /* pictos élargis + espacés pour le pouce (v21) */
+            .action-bar .hdr-btn {
+                width: 60px;
+                height: 44px;   /* v26 : cible du pouce ≥ 44 px (audit P2) */
+                font-size: 1.2rem;
+            }
+
+        /* v33 : grandes surfaces (tablettes) — détection de l'écran via media query :
+           boutons plus LARGES (la hauteur reste 44 px : la barre ne doit pas manger le
+           trackpad) et espacement accru pour couvrir harmonieusement la barre. */
+        @media (min-width: 700px) {
+            .action-bar { gap: 36px; }
+            .action-bar .hdr-btn { width: 82px; font-size: 1.4rem; border-radius: 14px; }
+            .action-bar .hdr-btn svg { width: 32px; height: 32px; }
+        }
+        @media (min-width: 1024px) {
+            .action-bar { gap: 52px; padding: 10px 0 8px; }
+            .action-bar .hdr-btn { width: 96px; font-size: 1.6rem; }
+            .action-bar .hdr-btn svg { width: 36px; height: 36px; }
+        }
+
+        /* v33 : mode Accessibilité — grossit boutons, pictos, flèches et hint.
+           v38 : 2e réduction — les 4 boutons de la barre ne se touchent plus
+           (68 px au lieu de 76) et les arcs inférieurs montent moins haut sur
+           le trackpad (pictos 56 px, rayon ×1.15). Persistant (localStorage). */
+        body.access .hdr-btn { width: 46px; height: 42px; font-size: 1.05rem; }
+        body.access .hdr-btn svg { width: 21px; height: 21px; }
+        body.access .action-bar .hdr-btn { width: 68px; height: 46px; font-size: 1.25rem; border-radius: 12px; }
+        body.access .action-bar .hdr-btn svg { width: 28px; height: 28px; }
+        body.access .nav-arrow { width: 46px; height: 44px; }
+        body.access .nav-arrow svg { width: 21px; height: 21px; }   /* v40 : flèches agrandies aussi en Accessibilité */
+        /* v35 : en mode Grossissement, le titre d'onglet passe sur 2 LIGNES
+           (clamp webkit) — mieux perceptible, plus de troncature aveugle. */
+        body.access .window-title {
+            font-size: 1rem;
+            white-space: normal;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-height: 1.25;
+            min-height: 32px;   /* hauteur stable même sur une seule ligne */
+        }
+        body.access .wheel-item { width: 56px; height: 56px; margin-left: -28px; margin-top: -28px; font-size: 1.45rem; }
+        body.access .wheel-item svg { width: 26px; height: 26px; }
+        body.access .wheel-lbl { font-size: 0.78rem; }
+        body.access .track-area .hint { font-size: 0.88rem; }
+        body.access .track-area .hint .hl.sm { font-size: 0.8rem; }
+
+        /* v34 : mode gaucher — miroir complet : boutons système en haut à GAUCHE,
+           barre d'action et barre d'onglets inversées ; les arcs d'angle sont
+           dessinés en symétrie (géré en JS dans le moteur de roue). */
+        body.lefty .header-side { right: auto; left: 4px; }
+        body.lefty .header-side.side-left { right: 4px; left: auto; }   /* v35 : les côtés s'échangent en mode gaucher */
+        body.lefty .action-bar { flex-direction: row-reverse; }
+        body.lefty .window-nav { flex-direction: row-reverse; }
+        /* large (v21) mais compacte en hauteur (v22) */
+        .track-area {
+            flex: 1 1 auto;
+            position: relative;
+            border-radius: var(--radius);
+            background: linear-gradient(170deg, #0f0f14 0%, #06060a 100%);
+            overflow: hidden;
+            border: 1px solid #1a1a22;
+            transition: opacity 0.2s, border-color 0.12s, box-shadow 0.15s;   /* v34 : border-color anime le micro-flash · v45 : anime aussi le halo (box-shadow) */
+        }
+        /* v45/v46 : halo de validation autour du trackpad. v46 : le halo devient
+           une ONDE PROGRESSIVE — un anneau lumineux part du BAS du trackpad et
+           remonte SYMÉTRIQUEMENT le long des deux côtés jusqu'au haut (fenêtre
+           éclairée d'un conic-gradient qui s'élargit de 12° à 180°, masquée
+           pour ne garder que l'anneau de bordure). Deux intensités : léger
+           (appui court, tick de répétition — 340 ms) et intense (appui long —
+           580 ms, onde plus ample). @property rend l'angle animable ; sans
+           support (très vieux Chrome), l'opacité anime seule — dégradation
+           propre, le halo reste visible. v48 : réglage plus subtil (glow
+           transparent réduit, anneau 2px, pics 0.4/0.65, 280/520 ms). */
+        /* v48 : halo PLUS SUBTIL — l'ancien réglage v45 (glow 14px/32px à
+           opacité pleine) éclaireait trop en usage nocturne ; le glow est
+           réduit ET transparent (color-mix), l'anneau passe à 2px et ne dépasse
+           plus 40 % (léger) / 65 % (intense) d'opacité — la hiérarchie
+           léger < intense reste lisible. */
+        @property --halo-s { syntax: '<angle>'; inherits: false; initial-value: 12deg; }
+        .track-area.halo { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 8px -6px color-mix(in srgb, var(--accent) 55%, transparent); }
+        .track-area.halo-strong { border-color: color-mix(in srgb, var(--accent) 80%, transparent); box-shadow: 0 0 16px -4px color-mix(in srgb, var(--accent) 70%, transparent); }
+        .track-area::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: var(--radius);
+            border: 2px solid transparent;   /* v48 : anneau aminci (3px → 2px), plus discret */
+            pointer-events: none;
+            background: conic-gradient(from calc(180deg - var(--halo-s)) at 50% 50%,
+                                        var(--accent) 0deg,
+                                        var(--accent) calc(2 * var(--halo-s)),
+                                        transparent calc(2 * var(--halo-s) + 26deg)) border-box;
+            -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;   /* ne garde que l'ANNEAU de bordure */
+            mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+            mask-composite: exclude;
+            opacity: 0;
+        }
+        /* v48 : pics d'opacité abaissés (1 → 0.4 léger / 0.65 intense) et durées
+           raccourcies — l'onde reste perceptible mais n'illumine plus la pièce. */
+        @keyframes halo-rise {
+            0%   { opacity: 0; --halo-s: 12deg; }   /* point lumineux au BAS */
+            14%  { opacity: 0.4; }
+            70%  { opacity: 0.4; }
+            100% { opacity: 0; --halo-s: 180deg; }  /* l'anneau est remonté jusqu'en haut */
+        }
+        @keyframes halo-rise-strong {
+            0%   { opacity: 0; --halo-s: 12deg; }
+            10%  { opacity: 0.65; }
+            74%  { opacity: 0.65; }
+            100% { opacity: 0; --halo-s: 180deg; }
+        }
+        .track-area.halo::after        { animation: halo-rise 280ms ease-out; }
+        .track-area.halo-strong::after { animation: halo-rise-strong 520ms ease-out; }
+
+        /* v49 : feedback visuel enrichi — 3 calques fixed (coordonnées viewport,
+           identiques pour trackpad, roues et titre) + toast d'action.
+           Z-index 150 : au-dessus des roues (120), sous les modales (200+). */
+        .tap-ripple, .pick-wave, .hold-ring {
+            position: fixed;
+            z-index: 150;
+            pointer-events: none;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        /* v49 D : ripple au POINT de tap — le halo dit « un tap a eu lieu »,
+           le ripple dit « ici, et c'est capté » */
+        .tap-ripple {
+            width: 14px; height: 14px;
+            border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+            animation: tap-ripple 300ms ease-out forwards;
+        }
+        @keyframes tap-ripple { from { opacity: 0.5; scale: 1; } to { opacity: 0; scale: 5; } }
+        /* v49 F : onde localisée au pick — part DU picto choisi, lie cause et
+           effet spatialement (remplace le halo générique sur les picks) */
+        .pick-wave {
+            width: 26px; height: 26px;
+            border: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
+            animation: pick-wave 480ms ease-out forwards;
+        }
+        @keyframes pick-wave { 0% { opacity: 0.65; scale: 0.4; } 30% { opacity: 0.65; } 100% { opacity: 0; scale: 3.2; } }
+        /* v49 E : anneau d'armement des appuis longs — se remplit pendant le
+           seuil, on VOIT quand le geste va basculer (fini les faux appuis subis) */
+        .hold-ring { width: 56px; height: 56px; }
+        .hold-ring svg { display: block; }
+        .hold-ring circle {
+            fill: none;
+            stroke: color-mix(in srgb, var(--accent) 75%, transparent);
+            stroke-width: 3;
+            stroke-dasharray: 157;      /* 2πr, r = 25 */
+            stroke-dashoffset: 157;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            animation: hold-fill linear forwards;   /* durée posée en JS = seuil exact */
+        }
+        @keyframes hold-fill { from { stroke-dashoffset: 157; } to { stroke-dashoffset: 0; } }
+        /* v49 G : toast d'action — confirme QUELLE action est partie, pas
+           seulement qu'une action est partie (relâchés longs, réglages) */
+        #action-toast {
+            position: fixed;
+            top: 54px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 150;
+            max-width: 86vw;
+            padding: 6px 16px;
+            border-radius: 99px;
+            background: color-mix(in srgb, var(--surface) 92%, transparent);
+            color: var(--fg);
+            border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+            font-size: 0.82rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease;
+        }
+        #action-toast.show { opacity: 1; }
+
+            .track-area.disabled {
+                opacity: 0.35;
+                pointer-events: none;
+            }
+
+            /* v28 : le drag devient VISIBLE — bordure orange pendant un
+               déplacement d'élément, vs vert en déplacement simple (audit P3). */
+            .track-area.dragging {
+                border-color: #ffb454;
+                box-shadow: inset 0 0 80px rgba(255, 180, 84, 0.10);
+            }
+
+        body.light .track-area.dragging {
+            border-color: #e8590c;
+            box-shadow: inset 0 0 80px rgba(232, 89, 12, 0.08);
+        }
+
+        body.light .track-area {
+            background: linear-gradient(170deg, #ffffff 0%, #ececf1 100%);
+            border-color: #d8d8de;
+        }
+
+        .scroll-bar {
+            position: absolute;
+            right: 4px;
+            top: 12px;
+            bottom: 60px;
+            width: 32px;
+            background: transparent;
+            touch-action: none;
+        }
+
+            .scroll-bar.left {
+                right: auto;
+                left: 4px;
+            }
+
+                .scroll-bar.left::before {
+                    right: auto;
+                    left: 4px;
+                }
+
+                .scroll-bar.left .scroll-thumb {
+                    right: auto;
+                    left: 4px;
+                }
+
+            .scroll-bar::before {
+                content: '';
+                position: absolute;
+                right: 4px;
+                top: 0;
+                bottom: 0;
+                width: 4px;
+                background: #1e1e28;
+                border-radius: 99px;
+            }
+
+        body.light .scroll-bar::before {
+            background: #d8d8de;
+        }
+
+        .scroll-thumb {
+            position: absolute;
+            right: 4px;
+            width: 4px;
+            background: var(--accent);
+            border-radius: 99px;
+            opacity: 0.55;
+            transition: top 0.05s, height 0.05s;
+        }
+
+        .scroll-bar-h {
+            position: absolute;
+            left: 12px;
+            right: 60px;
+            bottom: 4px;   /* v30 : barre collée au cadre inférieur, symétrique des barres latérales (rail à 8 px du bord) */
+            height: 32px;
+            background: transparent;
+            touch-action: none;
+        }
+            /* v30 : le rail est à 8 px du bord bas, comme les rails latéraux à 8 px des bords */
+            .scroll-bar-h::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 4px;
+                height: 4px;
+                background: #1e1e28;
+                border-radius: 99px;
+            }
+
+        body.light .scroll-bar-h::before {
+            background: #d8d8de;
+        }
+
+        .scroll-thumb-h {
+            position: absolute;
+            bottom: 4px;   /* v30 : le pouce glisse sur le rail collé au bord bas */
+            height: 4px;
+            background: var(--accent);
+            border-radius: 99px;
+            opacity: 0.55;
+            transition: left 0.05s, width 0.05s;
+        }
+
+        .fader {
+            position: fixed;
+            left: 50%;
+            width: 200px;
+            margin-left: -100px;
+            height: 34px;
+            background: rgba(15,15,20,0.85);
+            border: 1px solid #2a2a35;
+            border-radius: 99px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s;
+            z-index: 110;
+            backdrop-filter: blur(6px);
+        }
+
+            .fader.visible {
+                opacity: 1;
+            }
+
+        #sens-fader.visible {
+            pointer-events: auto;
+        }
+
+        body.light .fader {
+            background: rgba(255,255,255,0.88);
+            border-color: #ccc;
+        }
+
+        .fader-track {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            top: 50%;
+            height: 3px;
+            margin-top: -1.5px;
+            background: var(--fg-muted);
+            opacity: 0.45;
+            border-radius: 99px;
+        }
+
+        .fader-center {
+            position: absolute;
+            left: 50%;
+            top: -4px;
+            width: 2px;
+            height: 11px;
+            margin-left: -1px;
+            background: var(--fg-muted);
+            opacity: 0.6;
+            border-radius: 2px;
+        }
+
+        .fader-knob {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 24px;
+            height: 24px;
+            margin: -12px 0 0 -12px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            transform: translateX(0px);
+            transition: transform 0.05s;
+        }
+
+        .preview-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5,5,8,0.93);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .preview-overlay.visible {
+                display: flex;
+            }
+
+            .preview-overlay img {
+                max-width: 96vw;
+                max-height: 92vh;
+                border-radius: 12px;
+                border: 1px solid #2a2a35;
+            }
+
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5,5,8,0.88);
+            z-index: 210;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .confirm-overlay.visible {
+                display: flex;
+            }
+
+        .confirm-box {
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            border-radius: 16px;
+            padding: 22px 26px;
+            text-align: center;
+            max-width: 78vw;
+        }
+
+        #confirm-text {
+            font-size: 1.02rem;
+            margin-bottom: 18px;
+        }
+
+        .confirm-row {
+            display: flex;
+            gap: 12px;
+        }
+
+            .confirm-row button {
+                flex: 1;
+                padding: 12px;
+                border-radius: 12px;
+                border: 1px solid #2a2a35;
+                background: var(--surface);
+                color: var(--fg);
+                font-size: 0.95rem;
+            }
+
+        #confirm-yes {
+            background: var(--accent);
+            color: #0d0d10;
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Tutoriel : 3 gestes à la première connexion (v26, audit P2) —
+           v27 : croix ✕ de fermeture + un tap sur le touchpad suffit aussi. */
+        .onboard-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5,5,8,0.9);
+            z-index: 220;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .onboard-overlay.visible {
+                display: flex;
+            }
+
+        .onboard-box {
+            position: relative;   /* v27 : ancre de la croix ✕ */
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            border-radius: 16px;
+            padding: 22px 24px 18px;
+            text-align: center;
+            max-width: 78vw;
+        }
+
+        .onboard-x {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 44px;      /* cible ≥ 44 px (audit P2) */
+            height: 44px;
+            border: none;
+            background: transparent;
+            color: var(--fg-muted);
+            font-size: 1.15rem;
+            line-height: 1;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .onboard-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .onboard-text {
+            font-size: 0.92rem;
+            line-height: 1.6;
+            color: var(--fg-muted);
+            white-space: pre-line;
+            margin-bottom: 16px;
+        }
+
+        .onboard-dots {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+            .onboard-dots span {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--fg-muted);
+                opacity: 0.4;
+            }
+
+            .onboard-dots span.on {
+                background: var(--accent);
+                opacity: 1;
+            }
+
+        .onboard-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--accent);
+            background: var(--accent);
+            color: #0d0d10;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .wheel {
+            position: fixed;
+            width: 0;
+            height: 0;
+            z-index: 120;
+        }
+
+        .wheel-item {
+            position: absolute;
+            width: 54px;
+            height: 54px;
+            margin-left: -27px;
+            margin-top: -27px;
+            border-radius: 50%;
+            background: var(--surface-2);
+            border: 1px solid #2a2a35;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+            transform: scale(0.3);
+            opacity: 0;
+            transition: transform 0.16s ease-out, opacity 0.16s, background 0.12s;
+        }
+
+        .wheel.visible .wheel-item {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .wheel-item.active {
+            background: var(--accent);
+            color: #0d0d10;
+            border-color: var(--accent);
+            transform: scale(1.22);
+        }
+
+        body.light .wheel-item {
+            border-color: #ccc;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+        }
+        /* Pictos SVG monochromes : suivent currentColor (thème + état actif) */
+        .hdr-btn svg, .wheel-item svg, .nav-arrow svg {
+            display: block;
+        }
+
+        .hdr-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .action-bar .hdr-btn svg {
+            width: 26px;
+            height: 26px;
+        }
+
+        .wheel-item svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-arrow svg {
+            /* v40 : pictos 12→17 px — à 12 px dans une cible de 44 px,
+               les flèches étaient trop peu perceptibles */
+            width: 17px;
+            height: 17px;
+        }
+
+        .wheel-lbl {
+            position: absolute;
+            transform: translateX(-50%);
+            width: max-content; /* v31 : le conteneur .wheel fait 0×0 → sans ceci la largeur contrainte re-découpe "Sensibilité du Trackpad" sur 3 lignes. Seuls les \n explicites coupent. */
+            font-size: 0.62rem;
+            color: var(--fg);
+            background: rgba(20,20,26,0.85);
+            padding: 2px 7px;
+            border-radius: 6px;
+            white-space: pre-line;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+        }
+        /* pre-line : les "\n" des libellés font des vraies lignes (v23) */
+        .wheel.labels .wheel-lbl {
+            opacity: 1;
+        }
+
+        body.light .wheel-lbl {
+            background: rgba(255,255,255,0.92);
+        }
+
+        .track-area .hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -52%);
+            width: calc(100% - 48px); /* v31 : marges latérales plus généreuses (24 px par côté) */
+            pointer-events: none;
+            opacity: 0.98; /* v33 : lisibilité maximale (0.92 en v31) */
+            font-size: 0.78rem;
+            color: #dcdce6; /* v33 : nettement plus clair en sombre (v31 : #c9c9d6 — encore trop sombre) */
+            letter-spacing: 0.06em;
+            text-align: center;
+            line-height: 1.5; /* v31 : interligne resserré (était 2.15) */
+            transition: opacity 0.3s;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.55); /* v33 : halo renforcé */
+        }
+        .hint .hl { display: block; } /* v31 : chaque ligne logique = un bloc */
+        .hint .hl + .hl { margin-top: 9px; } /* v31 : espace entre items > interligne interne */
+        .hint .hl.sm { font-size: 0.7rem; }
+
+        body.light .track-area .hint {
+            color: #35353f; /* v33 : nettement plus foncé en clair (v31 : #4b4b58 — encore trop clair) */
+            text-shadow: none;
+        }
+
+        .track-area.active .hint {
+            opacity: 0.28;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        .keyboard-area {
+            flex: 0 0 auto;
+            padding: 10px 0 6px;
+            background: var(--bg);
+        }
+
+            .keyboard-area.hidden {
+                display: none;
+            }
+
+        .kb-field {
+            width: 100%;
+            height: 52px;
+            background: var(--surface);
+            color: var(--fg);
+            border: 1px solid #222;
+            border-radius: 14px;
+            padding: 10px 12px;
+            font-size: 1.05rem;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+            .kb-field:focus {
+                border-color: rgba(126,231,135,0.35);
+                box-shadow: 0 0 0 3px rgba(126,231,135,0.1);
+            }
+
+        .kb-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+            .kb-row button {
+                flex: 1;
+                padding: 12px;
+                background: var(--surface-2);
+                border: 1px solid #222;
+                border-radius: 12px;
+                color: var(--fg);
+                font-size: 0.92rem;
+                font-weight: 500;
+                letter-spacing: 0.01em;
+                transition: background 0.15s, transform 0.05s;
+            }
+
+                .kb-row button:active {
+                    background: #25252c;
+                    transform: translateY(1px);
+                }
+    </style>
+</head>
+<body>
+    <div class="app" id="app">
+        <div class="header">
+            <div class="header-side side-left">
+                <div class="hdr-btn" id="access-btn" role="button" aria-label="Accessibilité — appui court : grossir ou réduire les boutons et pictos, appui long : dark/light mode, mode miroir, tutoriel, aperçu de l'écran ; relâché sans glisser : réglages rapides (Win+A)" title="Accessibilité — appui court = grossissement, appui long = menu accessibilité, relâché sans glisser = réglages rapides (Win+A)"></div>
+            </div>
+            <div class="header-side">
+                <div class="hdr-btn" id="power-btn" role="button" aria-label="Menu Démarrer — appui long : éteindre, redémarrer, veille ; relâché sans glisser : vue des tâches (Win+Tab)" title="Menu Démarrer — appui court, appui long = roue extinction, relâché sans glisser = vue des tâches (Win+Tab)"></div>
+                <div class="hdr-btn" id="tool-btn" role="button" aria-label="Outils — appui court ou relâché long sans glisser : Paramètres Windows (Win+I) ; appui long glissé : sensibilité, défilement, vibrations" title="Paramètres (Win+I) — appui court ou relâché long sans glisser ; roue outils par glisser à l'appui long"></div>
+            </div>
+            <h1 id="app-title" role="button" aria-label="RemotePad — appui long : Explorateur de fichiers (Win+E)" title="Appui long puis relâcher = Explorateur de fichiers (Win+E)">RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v49</span></h1>
+        </div>
+        <div class="track-area" id="track-area">
+            <canvas id="trackpad-canvas"></canvas>
+            <div class="track-status"><div id="status"><span class="dot"></span>Déconnecté…</div><div class="devices" id="devices"></div><div class="latency" id="latency">— ms</div></div>
+            <div class="scroll-bar left" id="scroll-bar-l"><div class="scroll-thumb" id="scroll-thumb-l"></div></div>
+            <div class="scroll-bar" id="scroll-bar"><div class="scroll-thumb" id="scroll-thumb"></div></div>
+            <div class="scroll-bar-h" id="scroll-bar-h"><div class="scroll-thumb-h" id="scroll-thumb-h"></div></div>
+            <div class="hint"><span class="hl">Glissez pour déplacer le curseur</span><span class="hl sm">Tap = clic gauche · tap-tap-glissez = sélection de texte</span><span class="hl sm">Appui long (0,75 s) = clic droit · appui long + glissez = déplacer</span><span class="hl sm">2 doigts : glissez = défilement · tap = clic droit</span><span class="hl sm">Appui long sur une ancre = roue d'actions (sur le titre = onglets) · relâché sans glisser : ⊞ vue des tâches · ⚙ Paramètres · loupe réglages rapides · titre RemotePad = explorateur</span><span class="hl sm">← → page précédente/suivante · ◀ ▶ onglet précédent/suivant</span></div>
+
+        </div>
+        <div class="window-nav">
+            <div class="nav-arrow" id="nav-prev" role="button" aria-label="Onglet précédent" title="Onglet précédent (Ctrl+Maj+Tab)"></div>
+            <div class="nav-arrow" id="page-prev" role="button" aria-label="Page précédente" title="Page précédente (Alt+←)"></div>
+            <div class="window-title" id="window-title" role="button" aria-label="Fenêtre active — appui long : fermer, réouvrir, changer de fenêtre"></div>
+            <div class="nav-arrow" id="page-next" role="button" aria-label="Page suivante" title="Page suivante (Alt+→)"></div>
+            <div class="nav-arrow" id="nav-next" role="button" aria-label="Onglet suivant" title="Onglet suivant (Ctrl+Tab)"></div>
+        </div>
+        <div class="action-bar">
+            <div class="hdr-btn" id="clip-btn" role="button" aria-label="Presse-papiers — appui court : copier ou coller, appui long : couper" title="Copier — appui court, appui long = roue des raccourcis"></div>
+            <div class="hdr-btn" id="media-btn" role="button" aria-label="Lecture/Pause — appui long : pistes et flèches" title="Lecture/Pause — appui court, appui long = roue média"></div>
+            <div class="hdr-btn vol-btn" id="vol-btn" role="button" aria-label="Volume — appui court : muet, glisser : ajuster" title="Volume — glisser = ajuster, appui court = muet"></div>
+            <div class="hdr-btn" id="kbd-btn" role="button" aria-label="Clavier — appui court : afficher ou masquer, appui long : annuler, rétablir, tout sélectionner" title="Clavier — appui court, appui long = roue édition"></div>
+        </div>
+        <div class="fader" id="vol-fader">
+            <div class="fader-track"></div><div class="fader-center"></div>
+            <div class="fader-knob" id="vol-knob"></div>
+        </div>
+        <div class="fader" id="sens-fader" title="Sensibilité du trackpad (gauche = moins, droite = plus)">
+            <div class="fader-track"></div><div class="fader-center"></div>
+            <div class="fader-knob" id="sens-knob"></div>
+        </div>
+        <div class="preview-overlay" id="preview-overlay"><img id="preview-img" alt="Écran du PC"></div>
+        <div id="action-toast" aria-live="polite"></div>   <!-- v49 G : toast d'action (relâchés longs, réglages) -->
+        <div class="confirm-overlay" id="confirm-overlay">
+            <div class="confirm-box">
+                <div id="confirm-text"></div>
+                <div class="confirm-row">
+                    <button id="confirm-no">Annuler</button>
+                    <button id="confirm-yes">Confirmer</button>
+                </div>
+            </div>
+        </div>
+        <div class="onboard-overlay" id="onboard-overlay">
+            <div class="onboard-box">
+                <button class="onboard-x" id="onboard-x" aria-label="Fermer le tutoriel">✕</button>
+                <div class="onboard-title" id="onboard-title"></div>
+                <div class="onboard-text" id="onboard-text"></div>
+                <div class="onboard-dots" id="onboard-dots"></div>
+                <button class="onboard-btn" id="onboard-next">Suivant</button>
+            </div>
+        </div>
+        <div class="keyboard-area hidden">
+            <textarea id="text-input" class="kb-field" placeholder="Tapez un texte..." autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+            <div class="kb-row">
+                <button id="kb-enter">Entrée</button>
+                <button id="kb-bs">⌫</button>
+                <button id="kb-tab">Tab</button>
+                <button id="kb-send">Envoyer</button>
+            </div>
+        </div>
+    </div>
+    <script>
+const UPDATE_RATE = 30; // Hz — throttle réseau
+const SENSITIVITY = 1.8;
+const ACCEL_CURVE = [[0,0],[87,1],[173,1],[553,2],[900,3]];
+const TAP_MS_2F = 350;           // v39 : fenêtre du tap 2 doigts élargie (250 ms perdaient des taps — poser 2 doigts prend plus de temps qu'1)
+const TAP_MOVE_THRESHOLD = 12;
+const DOUBLE_TAP_MS = 400;      // fenêtre du double-tap / tap-tap-glisser
+const LONG_PRESS_MS = 750;       // au-delà, contact immobile = clic droit / drag
+
+let ws = null; let connected = false;
+let codeRefused = false;         // v39 : code du hash refusé — plus AUCUNE reconnexion auto (un code périmé ne peut pas « revenir » ; seule la page re-scannée repart)
+let banSuspendUntil = 0;         // v42 : ban serveur actif jusqu'à cette date — la reconnexion reprend seule après expiration (fini la boucle « Déconnecté — reconnexion… »)
+let reconnectDelay = 3000;
+let hiddenAt = 0;                // v44 : instant de mise en veille écran — au retour, la durée passée cachée décide « sonder » vs « remplacer immédiatement »
+let wakeLock = null;
+let pingTimer = null;
+
+const canvas = document.getElementById('trackpad-canvas');
+const trackArea = document.getElementById('track-area');   // v28 : trace orange en drag
+
+// v45/v46/v48 : halo de validation — une ONDE lumineuse part du BAS du trackpad et
+// remonte les deux côtés (animation CSS `halo-rise`, anneaux conic-gradient) ;
+// v48 : pics d'opacité 0.4 (léger, 280 ms) / 0.65 (intense, 520 ms) et glows
+// réduits — le halo reste lisible mais discret.
+// Utile quand on ne sent pas la vibration : environnement bruyant, vibrations
+// coupées, diagnostic des faux clics.
+let clickFlashTimer = null;
+function halo(strong) {
+          trackArea.classList.remove('halo', 'halo-strong');
+          void trackArea.offsetWidth;   // reflow : un halo déjà en cours repart de zéro (l'animation CSS redémarre)
+          const cls = strong ? 'halo-strong' : 'halo';
+          trackArea.classList.add(cls);
+          if (clickFlashTimer) clearTimeout(clickFlashTimer);
+          clickFlashTimer = setTimeout(() => trackArea.classList.remove(cls), strong ? 530 : 290);   // v48 : durées raccourcies avec l'animation
+}
+
+// v49 : TOAST d'action — confirme QUELLE action est partie (relâchés longs,
+// réglages). Double canal haptique+visuel sans occuper l'écran : 1,4 s puis fade.
+let toastTimer = null;
+function showToast(txt) {
+          const el = document.getElementById('action-toast');
+          el.textContent = txt;
+          el.classList.add('show');
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+// v49 D/F : ONDE LOCALISÉE au point de contact — tap (ripple discret) ou pick de
+// roue (onde ample qui part DU picto choisi). Coordonnées viewport (fixed).
+function rippleAt(x, y, wave) {
+          const el = document.createElement('div');
+          el.className = wave ? 'pick-wave' : 'tap-ripple';
+          el.style.left = x + 'px';
+          el.style.top = y + 'px';
+          document.body.appendChild(el);
+          el.addEventListener('animationend', () => el.remove());   // auto-nettoyage
+}
+
+// v49 E : ANNEAU D'ARMEMENT des appuis longs — se remplit pendant le seuil exact
+// (durée posée en JS), on voit quand le geste va basculer. Un seul anneau à la
+// fois : tout nouvel armement remplace le précédent.
+let holdRingEl = null;
+function showHoldRing(x, y, ms) {
+          hideHoldRing();
+          const el = document.createElement('div');
+          el.className = 'hold-ring';
+          el.style.left = x + 'px';
+          el.style.top = y + 'px';
+          el.innerHTML = '<svg viewBox="0 0 56 56" width="56" height="56"><circle cx="28" cy="28" r="25"/></svg>';
+          el.querySelector('circle').style.animationDuration = ms + 'ms';
+          document.body.appendChild(el);
+          holdRingEl = el;
+}
+function hideHoldRing() {
+          if (holdRingEl) { holdRingEl.remove(); holdRingEl = null; }
+}
+const ctx = canvas.getContext('2d');
+let lastX = 0, lastY = 0, lastT = 0;
+let moveXSum = 0, moveYSum = 0;
+let flushTimeout = null;
+let touchStartTime = 0;
+let touchMoved = false;
+// Distance cumulée depuis le touchstart (un glisser lent ne fait que 2-5 px
+// par événement : il faut cumuler pour distinguer immobile / mouvement).
+let touchMovedDistance = 0;
+let longPressTimer = null;
+let isLongPress = false;
+let isDragging = false;
+let dragFromTap = false;         // tap-tap-glisser en cours (sélection de texte)
+let dragTapStarted = false;      // bouton gauche enfoncé lors du tap-tap-glisser ?
+let leftHeld = false;            // v39 : bouton gauche actuellement MAINTENU par un geste (drag) — garantit qu'aucun gauche ne reste coincé
+let lastTapTime = 0;
+let lastTapX = 0, lastTapY = 0;  // position du tap précédent (condition de proximité du double-tap)
+let lastScrollY = 0;
+let lastScrollX = 0;
+let twoFingerScroll = false;   // évite le saut de curseur 2→1 doigt
+let twoFingerActive = false;   // v39 : des 2 doigts sont posés — le tap 2 doigts se juge au DERNIER lever, pas à l'événement qui groupe les levers
+let gestureTouches = 0;
+let twoFingerStartTime = 0;
+let twoFingerDist = 0;
+let scrollDragging = false;
+let scrollAnchorY = 0;
+let scrollImpulse = 0;
+let scrollLDragging = false;   // barre verticale GAUCHE (miroir de la droite)
+let scrollLAnchorY = 0;
+let scrollHDragging = false;
+let scrollHAnchorX = 0;
+let scrollHImpulse = 0;
+// Sens du défilement 2 doigts (retour utilisateur) : bascule persistante
+// dans la roue Outils. Naturel par défaut (doigts vers le bas = contenu bas).
+let scrollInvert = localStorage.getItem('scrollinv') === '1';
+
+// v34 : mode gaucher (miroir complet) — bascule persistante dans la roue Outils.
+// Boutons système en haut à GAUCHE, barre d'action et barre d'onglets inversées,
+// arcs d'angle dessinés en miroir (symétrie exacte du mode droitier).
+let lefty = localStorage.getItem('lefty') === '1';
+
+function resizeCanvas() {
+          const rect = canvas.getBoundingClientRect();
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('load', resizeCanvas);
+resizeCanvas();
+setTimeout(resizeCanvas, 200);
+setTimeout(resizeCanvas, 500);
+
+// Adapter la hauteur de l'app au clavier virtuel : la zone de saisie + les
+// boutons montent PAR-DESSUS l'interface (fixed, fond OPAQUE) — trackpad et
+// barre d'action ne bougent pas, ne se redimensionnent pas, et rien ne
+// transparaît sous « Entrée / ⌫ / Tab / Envoyer ».
+function adjustToVirtualKeyboard() {
+          const vv = window.visualViewport;
+          if (!vv) return;
+          const kbHeight = window.innerHeight - vv.height - vv.offsetTop;
+          const kbArea = document.querySelector('.keyboard-area');
+          if (kbHeight > 80) {
+            kbArea.style.position = 'fixed';
+            kbArea.style.bottom = kbHeight + 'px';
+            kbArea.style.left = '14px';
+            kbArea.style.right = '14px';
+            kbArea.style.zIndex = '50';
+            kbArea.style.boxShadow = '0 -8px 18px rgba(0,0,0,0.35)';
+          } else {
+            kbArea.style.position = '';
+            kbArea.style.bottom = '';
+            kbArea.style.left = '';
+            kbArea.style.right = '';
+            kbArea.style.zIndex = '';
+            kbArea.style.boxShadow = '';
+          }
+}
+if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', adjustToVirtualKeyboard);
+          window.visualViewport.addEventListener('scroll', adjustToVirtualKeyboard);
+}
+window.addEventListener('resize', adjustToVirtualKeyboard);
+
+let vibEnabled = localStorage.getItem('vib') !== '0';   // v34 : vibrations configurables (roue ⚙) — actives par défaut
+// v49 A : INTENSITÉ HAPTIQUE réglable (roue ⚙, item « Intensité ») — la
+// perception varie d'un vibreur et d'un téléphone à l'autre ; un multiplicateur
+// appliqué à TOUTE l'échelle garantit « ça se sent » sans sur-régler pour tous.
+const HAPTIC_GAINS = [0.7, 1, 1.5];
+const HAPTIC_GAIN_NAMES = ['subtile', 'standard', 'renforcée'];
+let hapticGain = parseInt(localStorage.getItem('hapticgain') || '1', 10);   // persistant, standard par défaut
+if (!(hapticGain >= 0 && hapticGain <= 2)) hapticGain = 1;
+// v47 : BUG CORRIGÉ — les vibrations appelées depuis un handler `touchend` sont
+// SUPPRIMÉES par Chrome Android : aucune validation de RELÂCHEMENT ne se faisait
+// sentir (sélection de picto, tap, clic droit, relâché long) ; seules vibraient
+// celles déclenchées HORS handler (appui long, passage sur un picto) — d'où le
+// ressenti rapporté. Parade standard : différer l'appel d'une macrotâche
+// setTimeout(0) — il sort du handler d'événement et n'est plus supprimé.
+function vibrate(ms) {
+          if (!vibEnabled || !navigator.vibrate) return;
+          const g = HAPTIC_GAINS[hapticGain];   // v49 : l'échelle est multipliée par le gain réglé
+          const scaled = Array.isArray(ms) ? ms.map(v => Math.round(v * g)) : Math.round(ms * g);
+          setTimeout(() => navigator.vibrate(scaled), 0);
+}
+// v47 : échelle haptique revue selon le ressenti réel et la spécification de
+// l'utilisateur — les niveaux comptent des PULSES (1 forte, 1 courte,
+// 2 courtes, courtes répétées), chacun espacé du suivant :
+//   tick   12 ms        information discrète : fin de drag, armement du clic droit (750 ms), fin de hold, annulation
+//   short  25 ms        validation de l'ACTION PRINCIPALE : appui court d'un menu, passage sur un picto, relâchement sur un picto (sélection), tap du trackpad
+//   strong 90 ms        validation de l'ACTION SECONDAIRE engagée : OUVERTURE d'une roue (l'appui long tient bon), seuil du titre franchi — UN seul buzz ample
+//   dbl    [30, 60, 30] clic droit : 2 vibrations courtes
+//   repeat 50 ms        chaque cran d'une répétition : seek ⏪/⏩ (500 ms), borne de volume (300 ms)
+const HAPTIC = {
+  tick:   12,
+  short:  25,
+  strong: 90,
+  dbl:    [30, 60, 30],
+  repeat: 50,
+};
+
+function setStatus(msg, ok) {
+          const s = document.getElementById('status');
+          s.innerHTML = '<span class="dot"></span>' + msg;
+          s.className = ok ? 'ok' : 'err';
+          document.getElementById('track-area').classList.toggle('disabled', !connected);
+}
+
+async function requestWakeLock() {
+          try {
+            if ('wakeLock' in navigator) {
+              wakeLock = await navigator.wakeLock.request('screen');
+              wakeLock.addEventListener('release', () => { wakeLock = null; });
+            }
+          } catch (e) { /* non critique */ }
+}
+// v44 : réveil écran — pendant la veille les timers du navigateur sont gelés :
+// PLUS AUCUN ping n'est parti, la socket TCP est souvent zombie côté réseau bien
+// qu'encore « ouverte » côté navigateur. Avant : sonde 1,2 s PUIS reconnexion ≈
+// 1,5–2 s ressenties à chaque rallumage. Dorénavant : veille LONGUE (> 10 s) →
+// la socket est remplacée SANS sonde (le handshake ~0,3 s est plus court que la
+// sonde elle-même) ; veille courte → sonde 800 ms (le pong revient en < 50 ms
+// sur un LAN sain, la marge reste large) ; backoff remis à 3 s au retour — un
+// backoff accumulé (jusqu'à 30 s) n'a plus cours quand l'utilisateur revient.
+document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+          reconnectDelay = 3000;   // v44 : retour de l'utilisateur = on repart de 3 s
+          if (connected && ws && ws.readyState === 1) {
+            if (hiddenAt && Date.now() - hiddenAt > 10000) {
+              try { ws.close(); } catch (e) {}   // v44 : veille longue — la ligne commune ci-dessous recrée la socket immédiatement ; la garde « socket périmée » de connect() ignore la fermeture de l'ancienne
+            } else {
+              requestWakeLock();
+              sendPing(800);   // v44 : sonde 1200→800 ms
+            }
+          }
+          if (!ws || ws.readyState > 1) connect();
+});
+window.addEventListener('online', () => {   // v44 : réseau de retour (wifi réassocié) — même chemin rapide qu'un réveil écran
+          reconnectDelay = 3000;
+          if (!connected && (!ws || ws.readyState > 1)) connect();
+});
+
+function connect() {
+          if (codeRefused) return;   // v39 : code refusé — attend le re-scan du QR (nouvelle page, nouveau hash)
+          const banLeft = banSuspendUntil - Date.now();
+          if (banLeft > 0) {   // v42 : ban serveur en cours — chaque tentative serait rejetée : on reprend SEULE après expiration
+            setTimeout(connect, banLeft + 500);
+            return;
+          }
+          if (document.hidden) return;
+          if (ws && ws.readyState <= 1) return; // une seule socket à la fois
+          const host = window.location.hostname || 'localhost';
+          const url = 'ws://' + host + ':8765';
+          setStatus('Connexion…', false);
+          try { ws = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
+          const sock = ws;   // v44 : identité de la socket — les événements d'une socket REMPLACÉE (remplacement au réveil écran) n'ont plus de sens : l'ancienne n'a pas le droit de déclarer « Déconnecté » par-dessus la nouvelle
+          ws.onopen = () => { if (sock !== ws) return; setStatus('Connecté', true); };
+          ws.onmessage = (e) => {
+            if (sock !== ws) return;   // v44 : garde de socket périmée
+            const d = e.data;
+            lastPongAt = performance.now();   // v42 : TOUT message du serveur prouve que la socket vit — pendant un aperçu, le pong restait en file derrière la capture et le watchdog coupait une connexion saine
+            if (d === 'need-code') {
+              // Appairage automatique : le token est dans le hash de l'URL (#CODE)
+              const token = location.hash.slice(1);
+              if (/^\d{6}$/.test(token)) {
+                ws.send('join:' + token + ':v49');
+              } else {
+                setStatus('Ouvrez RemotePad via le QR code affiché sur le PC', false);
+              }
+            } else if (d === 'ok') {
+              connected = true;
+              lastPongAt = performance.now();
+              document.getElementById('track-area').classList.add('active');
+              setStatus('Appairé — prêt', true);
+              reconnectDelay = 3000; // reset du backoff
+              requestWakeLock();
+              startPing();
+              if (!localStorage.getItem('onboarded')) showOnboarding();   // première connexion : le tutoriel (v27)
+            } else if (d === 'error') {
+              setStatus('Code refusé — rescannez le QR affiché sur le PC (un serveur relancé = un nouveau code)', false);   // v42 : le message dit POURQUOI le code est périmé
+              // v39 : le code du hash est périmé (serveur relancé) — réessayer
+              // en boucle ne peut pas aboutir et accumule des échecs → ban
+              // surprise après 3 chutes de socket. On ferme et on suspend
+              // la reconnexion auto jusqu'au re-scan du QR.
+              codeRefused = true;
+              try { ws.close(); } catch (e) {}
+            } else if (d === 'banned' || d.slice(0, 7) === 'banned:') {
+              // v42/srv-v14.7 : le serveur annonce la durée RESTANTE du ban —
+              // avant, chaque tentative pendant le ban était rejetée et le client
+              // bouclait « Déconnecté — reconnexion… » sans jamais dire pourquoi.
+              const wait = d.slice(0, 7) === 'banned:' ? Math.max(1, parseInt(d.slice(7), 10) || 30) : 30;
+              setStatus('Trop de tentatives — réessayez dans ' + wait + ' s', false);
+              banSuspendUntil = Date.now() + (wait + 2) * 1000;   // +2 s de marge : on reprend APRÈS l'expiration côté serveur
+            } else if (d.slice(0, 1) === 'i') {
+              // Aperçu écran : JPEG base64 → overlay plein écran (tap pour fermer).
+              // 'i!' = échec serveur → jamais d'échec silencieux.
+              if (d === 'i!') { setStatus('Aperçu indisponible', false); vibrate([40, 40, 40]); }
+              else showPreview(d.slice(1));
+            } else if (d.slice(0, 1) === 'w') {
+              document.getElementById('window-title').textContent = d.slice(1);
+            } else if (d.slice(0, 1) === 'n' && d.length > 1 && !isNaN(parseInt(d.slice(1), 10))) {
+              // v33 : multi-appareils — le serveur annonce le nombre d'appareils actifs
+              const n = parseInt(d.slice(1), 10);
+              document.getElementById('devices').textContent = n > 1 ? n + ' appareils actifs' : '';
+            } else if (d === 'pong') {
+              lastPongAt = performance.now();       // le serveur a répondu : la socket est vivante
+              if (pongWatchdog) { clearTimeout(pongWatchdog); pongWatchdog = null; }
+              const rtt = Math.round(performance.now() - lastPingSent);
+              const prev = parseInt(document.getElementById('latency').textContent) || 0;
+              if (Math.abs(rtt - prev) > 20 || prev === 0) {
+                document.getElementById('latency').textContent = rtt + ' ms';
+              }
+            }
+          };
+          ws.onclose = () => {
+            if (sock !== ws) return;   // v44 : socket remplacée — sa fermeture ne dégrade pas l'état de la nouvelle
+            connected = false;
+            stopPing();
+            if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
+            document.getElementById('track-area').classList.remove('active');
+            if (codeRefused) return;   // v39 : pas de reconnexion auto — « rescannez le QR » reste affiché
+            if (Date.now() < banSuspendUntil) return;   // v42 : ban en cours — le compte à rebours reste affiché, pas de boucle de reconnexion
+            setStatus('Déconnecté — reconnexion…', false);
+            scheduleReconnect();
+          };
+          ws.onerror = () => { if (sock !== ws) return; setStatus('Erreur WebSocket', false); };
+}
+function scheduleReconnect() {
+          setTimeout(() => { if (!connected) connect(); }, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 1.7, 30000); // plafond 30 s
+}
+connect();
+
+// Latence + watchdog : ping toutes les 5 s. Si aucun pong n'arrive dans le
+// délai, la socket TCP est morte mais encore "vue ouverte" par le navigateur
+// (typique après veille de l'écran) → on la ferme et on se reconnecte
+// immédiatement au lieu d'attendre le timeout TCP de plusieurs dizaines de s.
+let lastPingSent = 0;
+let lastPongAt = 0;
+let pongWatchdog = null;
+function sendPing(timeoutMs) {
+          if (!connected || !ws || ws.readyState !== 1) return;
+          if (pongWatchdog) clearTimeout(pongWatchdog);   // v44 : la sonde du réveil remplaçait le watchdog de l'intervalle sans le nettoyer — deux timers jugeaient la même socket
+          lastPingSent = performance.now();
+          ws.send('ping');
+          pongWatchdog = setTimeout(() => {
+            if (lastPongAt < lastPingSent) {
+              // aucun pong depuis ce ping : socket zombie → fermeture + reconnexion
+              try { ws.close(); } catch (e) {}
+              connect();
+            }
+          }, timeoutMs);
+}
+function startPing() {
+          stopPing();
+          pingTimer = setInterval(() => sendPing(4000), 5000);
+}
+function stopPing() {
+          if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+          if (pongWatchdog) { clearTimeout(pongWatchdog); pongWatchdog = null; }
+}
+
+function drawTrail(x, y) {
+          ctx.fillStyle = 'rgba(126,231,135,0.18)';
+          ctx.beginPath(); ctx.arc(x, y, 10 + Math.random()*8, 0, Math.PI*2); ctx.fill();
+          setTimeout(() => { ctx.clearRect(0,0,canvas.width,canvas.height); }, 180);
+}
+function getTouch(e) {
+          const t = e.touches[0];
+          const rect = canvas.getBoundingClientRect();
+          return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+}
+function accelMult(speed) {
+          for (let i = 1; i < ACCEL_CURVE.length; i++) {
+            if (speed <= ACCEL_CURVE[i][0]) {
+              const [x0, y0] = ACCEL_CURVE[i-1];
+              const [x1, y1] = ACCEL_CURVE[i];
+              return y0 + (y1 - y0) * (speed - x0) / (x1 - x0);
+            }
+          }
+          return ACCEL_CURVE[ACCEL_CURVE.length - 1][1];
+}
+function scheduleFlush() {
+          if (flushTimeout) return;
+          flushTimeout = setTimeout(flushMove, 1000 / UPDATE_RATE);
+}
+function flushMove() {
+          flushTimeout = null;
+          const xInt = Math.trunc(moveXSum);
+          const yInt = Math.trunc(moveYSum);
+          if ((xInt !== 0 || yInt !== 0) && connected) {
+            ws.send(`m${xInt};${yInt}`);
+            moveXSum -= xInt;
+            moveYSum -= yInt;
+            scheduleFlush();
+          }
+}
+function pointerMove(dx, dy) {
+          moveXSum += dx * SENSITIVITY * sensFactor;
+          moveYSum += dy * SENSITIVITY * sensFactor;
+          scheduleFlush();
+}
+
+canvas.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          if (activeAnchor) activeAnchor.forceClose();   // doigt posé sur le trackpad → la roue disparaît
+          gestureTouches = e.touches.length;
+          if (e.touches.length === 2) {
+            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            // v39 : un drag était en cours (appui long ou tap-tap-glisser) ?
+            // Son bouton gauche est relâché CIBLÉ — l'ancien code annulait
+            // l'état sans b0;0 et Windows gardait le drag actif jusqu'au
+            // prochain tap.
+            if (leftHeld && connected) { ws.send('b0;0'); vibrate(HAPTIC.tick); }
+            leftHeld = false;
+            isLongPress = false; isDragging = false;
+            trackArea.classList.remove('dragging');   // v28 : 2e doigt = défilement, plus de drag
+            touchMoved = true;
+            twoFingerScroll = true;
+            twoFingerActive = true;    // v39 : phase 2 doigts armée — le tap se jugera au DERNIER lever
+            twoFingerStartTime = performance.now();
+            twoFingerDist = 0;
+            const p1 = getTouch({touches: [e.touches[0]]});
+            const p2 = getTouch({touches: [e.touches[1]]});
+            lastScrollY = (p1.y + p2.y) / 2;
+            lastScrollX = (p1.x + p2.x) / 2;
+            return;
+          }
+          const p = getTouch(e);
+          lastX = p.x; lastY = p.y;
+          lastT = performance.now();
+          moveXSum = 0; moveYSum = 0;
+          touchStartTime = performance.now();
+          touchMoved = false;
+          touchMovedDistance = 0;
+          isLongPress = false;
+          isDragging = false;
+          twoFingerScroll = false;
+          trackArea.classList.remove('dragging');   // v28 : nouveau contact → trace neutre
+          // Tap-tap-glissez (sélection de texte) : 2e tap d'un double-tap.
+          // Condition de PROXIMITÉ : deux taps ne forment un double-tap que s'ils
+          // sont proches (< 50 px) — deux taps rapprochés dans le temps mais à des
+          // endroits différents restent deux clics de positionnement distincts.
+          const nearLastTap = Math.hypot(p.x - lastTapX, p.y - lastTapY) < 50;
+          if (performance.now() - lastTapTime < DOUBLE_TAP_MS && nearLastTap) {
+            lastTapTime = 0;
+            dragFromTap = true;
+            dragTapStarted = false;
+            return;
+          }
+          dragFromTap = false;
+          dragTapStarted = false;
+          showHoldRing(e.touches[0].clientX, e.touches[0].clientY, LONG_PRESS_MS);   // v49 E : l'anneau se remplit pendant l'armement du clic droit (750 ms) — on voit quand le geste va basculer
+          longPressTimer = setTimeout(() => {
+            hideHoldRing();   // v49 E : seuil atteint ou contact déplacé — l'anneau a fini son rôle
+            if (touchMoved || touchMovedDistance >= 8) return;
+            isLongPress = true;
+            vibrate(HAPTIC.tick);   // v46 : l'appui long est ARMÉ · v47 — information, pas validation
+            // v39 : plus de LEFTDOWN ici — un appui long immobile devient un
+            // clic droit PUR. L'ancien b0;1 ici + b0;0 au relâcher formait un
+            // vrai clic GAUCHE pour l'app (pause vidéo, suivi de lien…) juste
+            // avant le menu contextuel. Le gauche ne s'enfonce plus qu'au
+            // premier MOUVEMENT (drag), dans le touchmove.
+          }, LONG_PRESS_MS);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!connected) return;
+          if (e.touches.length === 2) {
+            // Scroll 2 doigts proportionnel, vertical ET horizontal
+            const p1 = getTouch({touches: [e.touches[0]]});
+            const p2 = getTouch({touches: [e.touches[1]]});
+            const midY = (p1.y + p2.y) / 2;
+            const midX = (p1.x + p2.x) / 2;
+            const deltaY = midY - lastScrollY;
+            const deltaX = midX - lastScrollX;
+            twoFingerDist += Math.abs(deltaY) + Math.abs(deltaX);
+            const inv = scrollInvert ? -1 : 1;   // inversion éventuelle du sens (roue ⚙)
+            if (Math.abs(deltaY) > 3) {
+              const steps = Math.max(-5, Math.min(5, Math.round(deltaY / 6))) * inv;
+              if (steps !== 0) ws.send(`s${steps}`);
+              lastScrollY = midY;
+            }
+            if (Math.abs(deltaX) > 3) {
+              const steps = Math.max(-5, Math.min(5, Math.round(deltaX / 6))) * inv;
+              if (steps !== 0) ws.send(`h${steps}`);
+              lastScrollX = midX;
+            }
+            return;
+          }
+          const p = getTouch(e);
+          // Correctif saut de curseur : après un scroll 2 doigts, réinitialiser la référence
+          if (twoFingerScroll) {
+            twoFingerScroll = false;
+            lastX = p.x; lastY = p.y; lastT = performance.now();
+            touchMoved = true;
+            return;
+          }
+          const dx = p.x - lastX;
+          const dy = p.y - lastY;
+          const dist = Math.hypot(dx, dy);
+          touchMovedDistance += dist;
+          if (!touchMoved && touchMovedDistance > TAP_MOVE_THRESHOLD) { touchMoved = true; hideHoldRing(); }   // v49 E : le contact devient un glisser — l'anneau d'armement n'a plus de sens
+          if (isLongPress && touchMovedDistance > 8 && !isDragging) {   // v39 : le gauche s'enfonce ICI, au 1er mouvement (et pas à 750 ms)
+            isDragging = true;   // appui long + mouvement = drag
+            leftHeld = true;
+            if (connected) ws.send('b0;1');
+          }
+          if (dragFromTap && !dragTapStarted && touchMovedDistance > 4) {
+            dragTapStarted = true;          // le 2e tap bouge : le drag démarre ici
+            isDragging = true;
+            leftHeld = true;                 // v39 : suivi du gauche maintenu
+            vibrate(HAPTIC.tick);   // v46 : le drag démarre — information · v47
+            if (connected) ws.send('b0;1');
+          }
+          trackArea.classList.toggle('dragging', isDragging);   // v28 : trace orange tant que le drag est actif
+          // Pendant le tap-tap-glisser, le curseur reste à l'ancre tant que le bouton
+          // n'est pas enfoncé ; ensuite le curseur bouge AUSSI pendant le drag
+          // (sinon rien n'est jamais déplacé ni sélectionné).
+          const anchoring = dragFromTap && !dragTapStarted;
+          if (!anchoring) {
+            const now = performance.now();
+            const dt = Math.max(now - lastT, 1);
+            const speed = dist / dt * 1000;
+            pointerMove(dx * accelMult(speed), dy * accelMult(speed));
+            lastT = now;
+            drawTrail(p.x, p.y);
+          }
+          lastX = p.x; lastY = p.y;
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          hideHoldRing();   // v49 E : le contact s'achève — jamais d'anneau orphelin
+          if (flushTimeout) { clearTimeout(flushTimeout); flushTimeout = null; }
+          flushMove();
+          const now = performance.now();
+          const remaining = e.touches.length;
+
+          // --- Geste 2 doigts : le tap se juge au DERNIER lever (v39) ---
+          // Avant, le clic droit n'était émis que si les 2 doigts se levaient
+          // dans le MÊME événement touchend (gestureTouches===2 && remaining===0) :
+          // dès qu'un doigt se levait le premier, gestureTouches passait à 1 et
+          // le tap était perdu — sur les navigateurs qui livrent les levers en
+          // deux événements séparés, le clic droit 2 doigts ne marchait jamais.
+          if (twoFingerActive) {
+            if (remaining > 0) {   // 1er doigt levé : on attend le dernier
+              gestureTouches = remaining;
+              return;
+            }
+            twoFingerActive = false;
+            twoFingerScroll = false;
+            const twoFingerTap = twoFingerDist <= TAP_MOVE_THRESHOLD
+                               && (now - twoFingerStartTime) < TAP_MS_2F;
+            twoFingerDist = 0;
+            gestureTouches = 0;
+            if (connected && twoFingerTap) {
+              vibrate(HAPTIC.dbl);   // v47 : clic droit = 2 vibrations courtes (spec utilisateur) — le relâchement vibre ENFIN (bug touchend corrigé)
+              ws.send('b2;1'); ws.send('b2;0');
+              halo(false);   // v45 : geste bref → halo léger (le clic droit d'appui long, lui, a le halo intense)
+              let rx = 0, ry = 0;   // v49 D : ripple au point médian du tap 2 doigts
+              for (const t of e.changedTouches) { rx += t.clientX; ry += t.clientY; }
+              rippleAt(rx / e.changedTouches.length, ry / e.changedTouches.length);
+            }
+            return;
+          }
+
+          gestureTouches = remaining;
+          const wasLongPress = isLongPress;
+          const wasDragging = isDragging;
+          const wasDragFromTap = dragFromTap;
+          const tapDragStarted = dragTapStarted;
+          isLongPress = false;
+          isDragging = false;
+          dragFromTap = false;
+          dragTapStarted = false;
+          twoFingerScroll = false;
+          trackArea.classList.remove('dragging');   // v28 : fin du contact → trace neutre
+          if (!connected) return;
+          if (wasDragging) {
+            ws.send('b0;0');                    // fin de drag (appui long OU tap-tap-glissé)
+            leftHeld = false;
+          } else if (wasDragFromTap && !tapDragStarted) {
+            // Tap-tap (ou tap-tap-tap) relevé sans bouger : UN clic réel par tap.
+            // Le système CUMULE les clics : 2 = double-clic (mot), 3 = triple-clic
+            // (paragraphe). L'ancien b0;2 surajoutait DEUX clics au clic du premier
+            // tap — un simple tap-tap sélectionnait donc tout le paragraphe.
+            ws.send('b0;1'); ws.send('b0;0');
+            lastTapTime = now;
+            lastTapX = lastX; lastTapY = lastY;
+            vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47
+            halo(false);   // v45 : halo léger — tap cumulé = un clic comme un autre
+            rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);   // v49 D : ripple au point du tap
+          } else if (wasLongPress) {
+            // v39 : clic droit PUR — le gauche n'a jamais été enfoncé, aucun
+            // b0;0 à envoyer (jamais d'UP orphelin : la règle d'or du serveur)
+            ws.send('b2;1'); ws.send('b2;0');    // clic droit atomique
+            vibrate(HAPTIC.dbl);                         // v47 : clic droit = 2 vibrations courtes, comme le 2 doigts — le relâchement vibre ENFIN (bug touchend corrigé)
+            halo(true);                          // v45 : APPUI LONG → halo intense, comme les autres validations longues
+            rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);   // v49 D : le clic droit d'appui long valide AUSSI au point de contact
+          } else if (touchMoved) {
+            // mouvement simple : rien à relâcher
+          } else {
+            // Tap simple : UN clic réel — les doubles/triples clics naissent du
+            // cumul des taps, c'est le système qui interprète (mot, paragraphe).
+            ws.send('b0;1'); ws.send('b0;0');
+            lastTapTime = now;
+            lastTapX = lastX; lastTapY = lastY;
+            vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47
+            halo(false);   // v45 : halo léger — validation visible de chaque tap simple
+            rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);   // v49 D : le ripple dit OÙ le tap a été capté
+          }
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', (e) => {
+          e.preventDefault();
+          if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+          hideHoldRing();   // v49 E : contact annulé — jamais d'anneau orphelin
+          if (flushTimeout) { clearTimeout(flushTimeout); flushTimeout = null; }
+          flushMove();
+          isLongPress = false;
+          isDragging = false;
+          dragFromTap = false;
+          dragTapStarted = false;
+          twoFingerScroll = false;
+          trackArea.classList.remove('dragging');   // v28 : contact annulé → trace neutre
+          gestureTouches = 0;
+          twoFingerActive = false;   // v39 : la phase 2 doigts s'arrête net
+          twoFingerDist = 0;
+          if (leftHeld && connected) ws.send('b0;0');   // v39 : relâchement ciblé du gauche s'il est maintenu
+          leftHeld = false;
+}, { passive: false });
+
+// --- Barres de scroll (verticale à droite, horizontale en bas) ---
+// NB : déclarer les DEUX thumbs avant le premier appel à updateScrollGauge().
+const scrollBar = document.getElementById('scroll-bar');
+const scrollThumb = document.getElementById('scroll-thumb');
+const scrollBarL = document.getElementById('scroll-bar-l');
+const scrollThumbL = document.getElementById('scroll-thumb-l');
+const scrollBarH = document.getElementById('scroll-bar-h');
+const scrollThumbH = document.getElementById('scroll-thumb-h');
+
+// Barre verticale GAUCHE : miroir exact de la droite (même jauge partagée).
+scrollBarL.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          scrollLDragging = true;
+          scrollLAnchorY = e.touches[0].clientY;
+          scrollImpulse = 0;
+          updateScrollGauge();
+}, { passive: false });
+scrollBarL.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!scrollLDragging) return;
+          const y = e.touches[0].clientY;
+          const dy = y - scrollLAnchorY;
+          scrollImpulse = Math.max(-100, Math.min(100, scrollImpulse + dy * 3));
+          updateScrollGauge();
+          if (Math.abs(dy) > 5 && connected) {
+            ws.send(`s${dy > 0 ? 2 : -2}`);
+            scrollLAnchorY = y;
+          }
+}, { passive: false });
+scrollBarL.addEventListener('touchend', () => {
+          scrollLDragging = false;
+          const decay = setInterval(() => {
+            scrollImpulse *= 0.85;
+            if (Math.abs(scrollImpulse) < 2) { scrollImpulse = 0; clearInterval(decay); }
+            updateScrollGauge();
+          }, 50);
+});
+
+scrollBar.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          scrollDragging = true;
+          scrollAnchorY = e.touches[0].clientY;
+          scrollImpulse = 0;
+          updateScrollGauge();
+}, { passive: false });
+scrollBar.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!scrollDragging) return;
+          const y = e.touches[0].clientY;
+          const dy = y - scrollAnchorY;
+          scrollImpulse = Math.max(-100, Math.min(100, scrollImpulse + dy * 3));
+          updateScrollGauge();
+          if (Math.abs(dy) > 5 && connected) {
+            ws.send(`s${dy > 0 ? 2 : -2}`);
+            scrollAnchorY = y;
+          }
+}, { passive: false });
+scrollBar.addEventListener('touchend', () => {
+          scrollDragging = false;
+          const decay = setInterval(() => {
+            scrollImpulse *= 0.85;
+            if (Math.abs(scrollImpulse) < 2) { scrollImpulse = 0; clearInterval(decay); }
+            updateScrollGauge();
+          }, 50);
+});
+
+scrollBarH.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          scrollHDragging = true;
+          scrollHAnchorX = e.touches[0].clientX;
+          scrollHImpulse = 0;
+          updateScrollGauge();
+}, { passive: false });
+scrollBarH.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!scrollHDragging) return;
+          const x = e.touches[0].clientX;
+          const dx = x - scrollHAnchorX;
+          scrollHImpulse = Math.max(-100, Math.min(100, scrollHImpulse + dx * 3));
+          updateScrollGauge();
+          if (Math.abs(dx) > 5 && connected) {
+            ws.send(`h${dx > 0 ? 2 : -2}`);
+            scrollHAnchorX = x;
+          }
+}, { passive: false });
+scrollBarH.addEventListener('touchend', () => {
+          scrollHDragging = false;
+          const decay = setInterval(() => {
+            scrollHImpulse *= 0.85;
+            if (Math.abs(scrollHImpulse) < 2) { scrollHImpulse = 0; clearInterval(decay); }
+            updateScrollGauge();
+          }, 50);
+});
+
+function updateScrollGauge() {
+          const pct = Math.abs(scrollImpulse);
+          if (scrollImpulse >= 0) {
+            scrollThumb.style.top = (50 - pct / 2) + '%';
+            scrollThumb.style.height = pct / 2 + '%';
+          } else {
+            scrollThumb.style.top = '50%';
+            scrollThumb.style.height = pct / 2 + '%';
+          }
+          // Jauge identique sur la barre gauche (miroir)
+          scrollThumbL.style.top = scrollThumb.style.top;
+          scrollThumbL.style.height = scrollThumb.style.height;
+          const hpct = Math.abs(scrollHImpulse);
+          if (scrollHImpulse >= 0) {
+            scrollThumbH.style.left = (50 - hpct / 2) + '%';
+            scrollThumbH.style.width = hpct / 2 + '%';
+          } else {
+            scrollThumbH.style.left = '50%';
+            scrollThumbH.style.width = hpct / 2 + '%';
+          }
+}
+updateScrollGauge();
+
+// --- Clavier ---
+function sendText() {
+          const input = document.getElementById('text-input');
+          if (!input.value) return;
+          if (!connected) { setStatus('Non connecté — texte conservé', false); return; }
+          ws.send('t' + input.value);
+          input.value = '';
+          input.focus();
+}
+function sendSpecial(vk) {
+          if (connected) ws.send('k' + vk);
+}
+function toggleKeyboard() {
+          const area = document.querySelector('.keyboard-area');
+          area.classList.toggle('hidden');
+          // état visible sur le picto ⌨ de la barre d'action
+          document.getElementById('kbd-btn').classList.toggle('active', !area.classList.contains('hidden'));
+}
+
+// v27 : Entrée/⌫/Tab/Envoyer ne volent plus le focus du champ de saisie.
+// Sur mobile, tapoter un bouton faisait perdre le focus au textarea → le
+// clavier virtuel du téléphone disparaissait. preventDefault au touchstart
+// garde le focus dans le champ (le tap ne devient jamais un clic natif) ;
+// le click ne sert qu'aux tests souris sur desktop.
+document.querySelectorAll('.kb-row button').forEach((b) => {
+          const act = () => {
+            if (b.id === 'kb-send') sendText();
+            else sendSpecial({ 'kb-enter': 13, 'kb-bs': 8, 'kb-tab': 9 }[b.id]);
+          };
+          b.addEventListener('touchstart', (e) => { e.preventDefault(); act(); }, { passive: false });
+          b.addEventListener('click', act);
+});
+
+// --- Volume : fader horizontal (gauche = baisser, droite = augmenter) ---
+const volBtn = document.getElementById('vol-btn');
+const volFader = document.getElementById('vol-fader');
+const volKnob = document.getElementById('vol-knob');
+let volActive = false;
+let volLastX = 0;
+let volImpulse = 0;
+let volAccum = 0;
+let volChanged = false;   // le doigt a-t-il ajusté le volume pendant ce contact ?
+let volMuted = false;     // état "muet" optimiste (géré par RemotePad, sans synchro COM serveur)
+let volDecayTimer = null;
+let volRepTimer = null;    // v38 : auto-répétition quand le doigt TIENT une borne de la jauge
+let volRepDir = 0;         // v40 : direction de l'auto-répétition ARMÉE (±1, 0 = aucune)
+
+function volStep(dir) {    // v38 : 1 cran de volume, partagé glissé / auto-répétition (démute comme Windows)
+          if (connected) ws.send(dir > 0 ? 'v1' : 'v-1');
+          volChanged = true;
+          if (volMuted) { volMuted = false; updateVolIcon(); }
+          vibrate(HAPTIC.repeat);   // v46 : chaque cran NET · v47 (50 ms) — glissé comme auto-répétition de borne ; avant 8 ms, imperceptible
+          halo(false);   // v45 : chaque cran (glissé OU auto-répétition de borne) = 1 tick visible + ressenti — tenir la borne pulse le halo toutes les 300 ms
+}
+function volRepClear() { if (volRepTimer) { clearTimeout(volRepTimer); volRepTimer = null; } volRepDir = 0; }
+function volArmRepeat(dir) {
+          // v40 : l'armement ne se RECHARGE PLUS à chaque touchmove. Aucun doigt
+          // n'est parfaitement immobile : le jitter (±1-2 px) rechargeait le délai
+          // de 600 ms sans fin et la répétition ne partait JAMAIS en pratique.
+          // Désormais : déjà armé dans CE sens → le compte à rebours suit son
+          // cours ; seul un CRAN réellement glissé (voir touchmove) ou un
+          // changement de sens réarme — le glissé reste prioritaire.
+          if (volRepDir === dir) return;
+          volRepClear();
+          volRepDir = dir;
+          volRepTimer = setTimeout(function tick() {
+            volStep(dir);
+            volRepTimer = setTimeout(tick, 300);
+          }, 600);
+}
+
+function updateVolIcon() {
+          volBtn.innerHTML = volMuted ? ICONS.mute : ICONS.volume;   // le picto suit l'état muet local
+}
+
+function placeFader(faderEl, anchorEl) {
+          const r = anchorEl.getBoundingClientRect();
+          if (r.top < 80) {
+            // Ancre en HAUT d'écran (ex. ⚙) : le fader passe en DESSOUS, jamais hors écran (v20)
+            faderEl.style.bottom = (window.innerHeight - r.bottom - 12 - 34) + 'px';
+          } else {
+            faderEl.style.bottom = (window.innerHeight - r.top + 12) + 'px';
+          }
+}
+
+function volKnobUpdate() {
+          volKnob.style.transform = 'translateX(' + (Math.max(-100, Math.min(100, volImpulse)) * 0.7) + 'px)';
+}
+
+volBtn.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          volActive = true;
+          volLastX = e.touches[0].clientX;
+          volImpulse = 0;
+          volAccum = 0;
+          volRepClear();   // v38 : au cas où un auto-repeat aurait survécu au contact précédent
+          if (volDecayTimer) { clearInterval(volDecayTimer); volDecayTimer = null; }
+          placeFader(volFader, volBtn);
+          volKnobUpdate();
+          volFader.classList.add('visible');
+          volChanged = false;   // tant que le doigt ne glisse pas, l'appui peut être un "muet"
+}, { passive: false });
+
+volBtn.addEventListener('touchmove', (e) => {
+          e.stopPropagation();
+          if (!volActive) return;
+          const x = e.touches[0].clientX;
+          const dx = x - volLastX;
+          volLastX = x;
+          volImpulse = Math.max(-100, Math.min(100, volImpulse + dx));
+          volAccum += dx;
+          let glidedToward = 0;   // v40 : direction du dernier cran GLISSÉ pendant CE touchmove (±1, 0 = aucun)
+          while (Math.abs(volAccum) >= 12) {   // 12 px de glissé = 1 cran de volume
+            const dir = volAccum > 0 ? 1 : -1;
+            volStep(dir);
+            volAccum -= dir * 12;
+            glidedToward = dir;
+          }
+          // v40 : zone d'extrême avec HYSTÉRÉSIS (±90, et non plus le seuil exact
+          // 100) — le jitter autour de la borne franchissait 100 dans les deux
+          // sens et désarmait/réarmait la répétition sans fin. Tenir la zone →
+          // auto-répétition (600 ms d'armement puis toutes les 300 ms) ; un cran
+          // glissé VERS la borne → réarmement complet (le glissé pilote) ; un cran
+          // glissé vers l'intérieur fait sortir de la zone au prochain touchmove.
+          if (volImpulse >= 90) {
+            if (glidedToward === 1) volRepClear();
+            volArmRepeat(1);
+          } else if (volImpulse <= -90) {
+            if (glidedToward === -1) volRepClear();
+            volArmRepeat(-1);
+          } else volRepClear();
+          volKnobUpdate();
+}, { passive: false });
+
+volBtn.addEventListener('touchend', () => {
+          volRepClear();   // v38 : stoppe l'auto-répétition des bornes au lever du doigt
+          if (!volChanged && connected) {   // simple appui (pas de glissé) = basculer le muet
+            ws.send('v0');
+            volMuted = !volMuted;
+            updateVolIcon();
+            vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47
+            halo(false);   // v45 : halo léger — appui court
+          }
+          volActive = false;
+          volDecayTimer = setInterval(() => {
+            volImpulse *= 0.8;
+            if (Math.abs(volImpulse) < 2) {
+              volImpulse = 0;
+              clearInterval(volDecayTimer); volDecayTimer = null;
+              volFader.classList.remove('visible');
+            }
+            volKnobUpdate();
+          }, 40);
+});
+
+// ============================================================
+// Pictos — SVG inline monochromes, DA homogène : trait 1.7, bouts
+// ronds, currentColor (suit le thème et l'état actif). Aucune
+// dépendance à une police : plus jamais de symbole rendu en carré
+// (⏻) ni d'emoji coloré (📋 🔊) qui casse le noir et blanc.
+// ============================================================
+const _ic = (inner) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+const ICONS = {
+          access:    _ic('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="M10.5 7.8v5.4M7.8 10.5h5.4"/>'),
+          vibrate:   _ic('<rect x="9" y="3.5" width="6" height="17" rx="1.6"/><path d="M5.5 8.5v7M2.5 10v4M18.5 8.5v7M21.5 10v4"/>'),
+          swap:      _ic('<path d="M4 7.5h13M13.5 4 17 7.5 13.5 11"/><path d="M20 16.5H7M10.5 13 7 16.5l3.5 3.5"/>'),
+          copy:      _ic('<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15h-.5A2.5 2.5 0 0 1 2 12.5v-8A2.5 2.5 0 0 1 4.5 2h8A2.5 2.5 0 0 1 15 4.5V5"/>'),
+          cut:       _ic('<circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M8.1 7.7 20 19M8.1 16.3 20 5"/>'),
+          paste:     _ic('<path d="M15.8 4.5h2A2.5 2.5 0 0 1 20.5 7v12a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 19V7a2.5 2.5 0 0 1 2.5-2.5h2.2"/><rect x="8.5" y="2.5" width="7" height="4" rx="1.2"/><path d="M8.5 12.5h7M8.5 16h4.5"/>'),
+          pastefull: _ic('<path d="M15.8 4.5h2A2.5 2.5 0 0 1 20.5 7v12a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 19V7a2.5 2.5 0 0 1 2.5-2.5h2.2"/><rect x="8.5" y="2.5" width="7" height="4" rx="1.2"/><path d="M8.7 13.1l2.4 2.4 4.3-4.7"/>'),
+          playpause: _ic('<path d="M4 5.5 14 12 4 18.5Z"/><path d="M17 5.5v13M20.5 5.5v13"/>'),
+          volume:    _ic('<path d="M11 5.5 6.5 9H3.5v6h3l4.5 3.5Z"/><path d="M14.6 9.3a4 4 0 0 1 0 5.4M17.2 6.8a7.6 7.6 0 0 1 0 10.4"/>'),
+          mute:      _ic('<path d="M11 5.5 6.5 9H3.5v6h3l4.5 3.5Z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>'),
+          prev:      _ic('<path d="M18.5 4.5 9 12l9.5 7.5Z"/><path d="M5.5 4.5v15"/>'),
+          next:      _ic('<path d="M5.5 4.5 15 12l-9.5 7.5Z"/><path d="M18.5 4.5v15"/>'),
+          seekback:  _ic('<path d="M20.5 6.5 20.5 17.5 12.5 12Z"/><path d="M12 6.5 12 17.5 4 12Z"/>'),
+          seekfwd:   _ic('<path d="M3.5 6.5 3.5 17.5 11.5 12Z"/><path d="M12 6.5 12 17.5 20 12Z"/>'),
+          keyboard:  _ic('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M9.7 10h.01M13.4 10h.01M17.1 10h.01M6 14h.01M9.7 14h.01M16.4 14h.01M12 14h3"/>'),
+          tools:     _ic('<path fill="currentColor" stroke="none" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 6.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94 0 .32.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/>'),
+          winmenu:   _ic('<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.5"/>'),
+          power:     _ic('<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2.5V12"/>'),
+          reboot:    _ic('<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/><path d="M23 4v6h-6"/>'),
+          sleep:     _ic('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+          undo:      _ic('<path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>'),
+          redo:      _ic('<path d="M15 14l5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/>'),
+          all:       _ic('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 12.2l2.8 2.8 5.2-5.5"/>'),
+          alttab:    _ic('<path d="M20 7H5"/><path d="M8.5 3.5 5 7l3.5 3.5"/><path d="M4 17h15"/><path d="M15.5 13.5 19 17l-3.5 3.5"/>'),
+          theme:     _ic('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5A8.5 8.5 0 0 1 12 20.5Z" fill="currentColor" stroke="none"/>'),
+          sens:      _ic('<path d="M3.5 12h17"/><circle cx="9.5" cy="12" r="2.4"/>'),
+          scroll:    _ic('<path d="M8 4.5v14"/><path d="M4.8 15.3 8 18.5l3.2-3.2"/><path d="M16 19.5v-14"/><path d="M12.8 8.7 16 5.5l3.2 3.2"/>'),
+          view:      _ic('<path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'),
+          closetab:  _ic('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+          reopen:    _ic('<path d="M2.5 4v6h6"/><path d="M4.4 15a9 9 0 1 0 2.1-9.4L2.5 10"/>'),
+          chevL:     _ic('<path d="M14.5 5 8 12l6.5 7"/>'),
+          chevR:     _ic('<path d="M9.5 5 16 12l-6.5 7"/>'),
+          pageL:     _ic('<path d="M20 12H4.5"/><path d="M10.5 5.5 4 12l6.5 6.5"/>'),
+          pageR:     _ic('<path d="M4 12h15.5"/><path d="M13.5 5.5 20 12l-6.5 6.5"/>'),
+          help:      _ic('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.3 1-1.3 1.9"/><path d="M12 17h.01"/>'),
+};
+
+// ============================================================
+// Ancres & roues — le langage d'interaction unique du header :
+// appui court = action prédite · appui long (380 ms) = éventail
+// radial · glisser vers un picto (sans lever le doigt) = choisir ·
+// relâcher = exécuter (ou annuler si hors de la roue).
+// La roue n'existe QUE pendant l'appui : poser le doigt sur le
+// trackpad la fait aussi disparaître.
+// ============================================================
+const WHEEL_OPEN_MS = 380;
+let activeAnchor = null;   // roue ouverte → forceClose() appelable depuis le trackpad
+
+function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
+          const o = opts || {};
+          const btn = document.getElementById(btnId);
+          // Placement des libellés (v23) — règle : arcs du bas → libellé POSÉ
+          // au-dessus du picto (bas du texte à 4 px du haut du picto, jamais DEDANS),
+          // décalé vers l'intérieur via lblDx (copier → droite, clavier → gauche,
+          // ancres centrales → centré) ; ancres d'angle haut-droites (⊞/⚙) → SOUS
+          // le picto, texte ALIGNÉ À DROITE dont le bord droit s'ancre sous le
+          // centre du picto (le texte s'étend vers la gauche).
+          const lblDx = o.lblDx || 0;
+          const lblAbove = o.corner !== 'tr' && o.corner !== 'tl';   // v35 : ancres d'angle HAUTES ('tr' ET 'tl') → libellé SOUS le picto
+          let timer = null, labelTimer = null, holdTimer = null, wheel = null, items = null, pos = null, activeIdx = -1, picked = null, heldFired = 0, origin = { x: 0, y: 0 }, movedOut = false;   // v44 : movedOut — le doigt s'est écarté de l'ancre depuis l'ouverture de la roue (relâcher SANS bouger = raccourci dédié de l'ancre)
+
+          // Maintien = répétition : picto "hold" (ex. flèches de la roue média) → GRÂCE
+          // de 500 ms (v33 : protection contre les faux mouvements — effleurer le
+          // secteur ne lance AUCUN seek, il faut vraiment le tenir), puis action
+          // répétée toutes les 500 ms tant que le doigt reste sur le secteur,
+          // tick haptique à chaque répétition : chaque répétition = UN clic sur la
+          // flèche, exactement comme si on tapotait la flèche du clavier.
+          const stopHold = () => { if (holdTimer) clearInterval(holdTimer); holdTimer = null; };
+          const startHold = (item) => {
+            // Réarmement à l'entrée de CHAQUE secteur (v25, audit P1) :
+            // après avoir effleuré un picto hold (⏪/⏩), glisser vers un
+            // picto normal (ex. ⏮) puis relâcher n'exécutait RIEN —
+            // heldFired restait à 1 et le test du touchend échouait.
+            heldFired = 0;   // v33 : rien n'est tiré à l'entrée — la grâce décidera
+            if (!item.hold) return;
+            vibrate(HAPTIC.short);   // v47 : PASSAGE sur un picto = 1 vibration courte — v40 : tick immédiat à la CAPTURE d'un secteur seek, le doigt sait qu'il est sur ⏪/⏩ avant même le premier cran (500 ms de grâce)
+            holdTimer = setTimeout(() => {
+              heldFired = 1;   // la répétition a tiré : le relâchement ne re-tirera pas
+              onPick(item.id); vibrate(HAPTIC.repeat); halo(false);   // v45 : chaque cran de répétition = tick haptique + halo · v46 : cran de répétition = 50 ms, clairement AU-DESSUS d'une validation courte (25) et EN-DESSOUS d'un fort (triple buzz)
+              holdTimer = setInterval(() => { onPick(item.id); vibrate(HAPTIC.repeat); halo(false); }, 500);   // seek toutes les 500 ms + tick haptique NET à chaque répétition + halo à chaque tour (v45) — v46 : niveau repeat (50 ms), l'ancien 25 ms était trop proche du seuil de perception
+            }, 500);   // v33 : grâce 500 ms — un tap court reste un seek UNIQUE (via le touchend), seul le maintien répète
+          };
+
+          const reset = () => {
+            if (timer) clearTimeout(timer);
+            if (labelTimer) clearTimeout(labelTimer);
+            stopHold();
+            hideHoldRing();   // v49 E : l'armement est annulé, quel que soit le chemin — jamais d'anneau orphelin
+            timer = null; labelTimer = null; wheel = null; items = null; pos = null; activeIdx = -1; picked = null; heldFired = 0; activeAnchor = null; movedOut = false;
+          };
+          const forceClose = () => { if (wheel) wheel.remove(); reset(); };
+
+          btn.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            reset();
+            showHoldRing(e.touches[0].clientX, e.touches[0].clientY, WHEEL_OPEN_MS);   // v49 E : l'anneau se remplit pendant le seuil d'ouverture (380 ms) — on voit quand la roue va s'ouvrir
+            timer = setTimeout(() => {
+              timer = null;
+              hideHoldRing();   // v49 E : seuil atteint — la roue s'ouvre, l'anneau a fini son rôle
+              items = getItems();
+              const r = btn.getBoundingClientRect();
+              const n = items.length;
+              const cx0 = r.left + r.width / 2, cy0 = r.top + r.height / 2;
+              const acc = document.body.classList.contains('access');   // v33 : mode Accessibilité — arcs agrandis, jamais de chevauchement (les pictos passent à 56 px en v38, la répartition angulaire est la même)
+              let R = (92 + n * 6) * (acc ? 1.15 : 1);   // rayon HAUT : l'arc ne recouvre jamais les ancres voisines de la barre d'action — v38 : ×1.15 (pictos 56 px), les arcs inférieurs montent moins loin sur le trackpad
+              // Étendue de l'arc : demi-cercle resserré autour de la verticale — les
+              // pictos des bouts ne retombent jamais sur les ancres voisines ; si
+              // 2 pictos, groupe sur la moitié INTÉRIEURE (côté centre de l'écran),
+              // angles écartés pour qu'ils ne se chevauchent pas.
+              let a0 = 35, a1 = 145;
+              if (o.corner) {
+                // Ancre d'ANGLE (v24) : l'arc se dirige vers l'ANGLE OPPOSÉ et ses
+                // pictos forment un demi arc sur la moitié INTÉRIEURE du cercle :
+                //   'tr' haut-droit → descendant vers le bas-gauche (90°→165°)
+                //   'br' bas-droit  → montant vers le haut-gauche (90°→155°, v43)
+                //   'bl' bas-gauche → montant vers le haut-droite (90°→52,5°, v43)
+                // v43 : arcs du BAS — MÊME FORME que les demi-arcs SUPÉRIEURS
+                // (référence = Outils ⚙ et Loupe) : 1er picto à la VERTICALE de
+                // l'ancre à pleine distance (règle de rayon partagée 92+6n, plus
+                // de gonflement), puis éventail régulier vers le centre, ouverture
+                // inversée vers le trackpad. Le pivot de la v41 (apex 70°)
+                // décrochait l'arc de son ancre : le 1er picto glissait de côté
+                // et paraissait trop bas. Seule différence avec ⚙, imposée par
+                // la barre d'action : l'extrême de ⚙ descend à ~28 px de son
+                // ancre (sous l'en-tête = espace libre) ; son miroir exact
+                // retomberait SUR les boutons voisins (v38). Le balayage du bas
+                // est donc CAPÉ à 155° : le picto de bout reste à ≥ 25°
+                // d'élévation (≥ 14 px au-dessus des boutons, ≥ 18 en
+                // Accessibilité) — la barre n'est jamais couverte. L'espacement
+                // encaisse la casquette : 37,5° (comme ⚙) tant que l'arc
+                // n'approche pas la barre (2 items), 32,5° pour 3 items.
+                // FORME CIRCULAIRE UNIFORME (v24) : les arcs d'angle partagent la
+                // même règle de rayon (92+6n). Rayon adaptatif : pictos de 54 px
+                // → JAMAIS de chevauchement ; bornage conservé (l'arc du bas ne
+                // s'étend que vers le centre : aucun décalage de bornage).
+                if (o.corner === 'bl' || o.corner === 'br') {
+                  const maxFar = 155;   // v43 : l'extrême ne descend jamais sous 25° d'élévation — la barre d'action reste dégagée
+                  const step = Math.min(37.5, (maxFar - 90) / Math.max(1, n - 1));   // v43 : espacement de ⚙, réduit seulement si l'arc approcherait la barre (3 items → 32,5°)
+                  const sweep = step * Math.max(1, n - 1);
+                  a0 = 90;   // v43 : 1er picto à la verticale de l'ancre, à pleine distance — la forme de ⚙/Loupe, miroir inversé vers le trackpad
+                  a1 = a0 + (((o.corner === 'br') !== lefty) ? sweep : -sweep);   // 'br' ouvre vers le centre (gauche en droitier), 'bl' en miroir ; gaucher = symétrie exacte (l'apex est invariant)
+                }
+                else if (o.corner === 'tl') {   // v35 : ancre haut-GAUCHE (menu Accessibilité) — arc descendant vers le bas-DROITE, miroir exact du 'tr'
+                  a0 = 90; a1 = lefty ? 165 : 15;
+                }
+                else { a0 = 90; a1 = 165; }   // 'tr'
+                // v34 : mode gaucher — l'ancre d'angle est en haut à GAUCHE :
+                // l'arc descend vers le bas-DROITE (symétrique exact du mode droitier)
+                if (lefty && o.corner === 'tr') { a0 = 90; a1 = 15; }
+                R = Math.max(R, Math.ceil((acc ? 61 : 58) / ((Math.abs(a1 - a0) / Math.max(1, n - 1)) * Math.PI / 180)));   // v33 : 61 en Accessibilité (pictos 56 px — v38) · v35 : Math.abs — les arcs DESCENDANTS (tl, tr en gaucher) ont un balayage négatif, l'anti-chevauchement s'applique pareil · v41 : à 37,5° d'espacement le rayon 92+6n suffit toujours (plus de gonflement)
+              } else if (n === 2) {
+                if (o.spread2) { a0 = 152; a1 = 28; }   // ancre titre : les 2 pictos de part et d'autre du centre
+                else if (cx0 < window.innerWidth / 2) { a0 = 80; a1 = 30; }
+                else { a0 = 100; a1 = 150; }
+              }
+              wheel = document.createElement('div');
+              wheel.className = 'wheel';
+              pos = items.map((it, i) => {
+                const frac = (n === 1) ? 0.5 : i / (n - 1);
+                const a = ((a0 + (a1 - a0) * frac) * Math.PI) / 180;
+                const x = Math.cos(a) * R, y = ((o.down || o.corner === 'tr' || o.corner === 'tl') ? Math.sin(a) : -Math.sin(a)) * R;   // arc vers le HAUT (ancres en bas d'écran), le BAS pour les ancres d'angle HAUTES ('tr' ET 'tl' — v36 : sans le 'tl', l'arc Accessibilité se dessinait AU-DESSUS de l'écran)
+                const b = document.createElement('div');
+                b.className = 'wheel-item';
+                b.innerHTML = it.icon;   // picto SVG monochrome homogène
+                b.style.left = x + 'px';
+                b.style.top = y + 'px';
+                wheel.appendChild(b);
+                if (it.label) {   // libellé d'accessibilité (affiché après ~2 s d'appui)
+                  const l = document.createElement('div');
+                  l.className = 'wheel-lbl';
+                  l.textContent = it.label;   // libellé sur UNE ligne (v24) ; seul le menu Onglets porte un "\n" explicite (commande à la ligne)
+                  if (lblAbove) {
+                    // Arc du bas : posé AU-DESSUS du picto (bas du texte 4 px au-dessus du picto), décalé vers l'intérieur
+                    l.style.left = (x + lblDx) + 'px';
+                    l.style.top = (y - (acc ? 32 : 31)) + 'px';   // v33 : plus haut en Accessibilité (picto 56 px — v38)
+                    l.style.transform = 'translate(-50%, -100%)';
+                    l.style.textAlign = 'center';
+                  } else {
+                    // Ancre d'angle HAUTE ('tr' ou 'tl') : sous le picto, le texte
+                    // s'étend vers l'INTÉRIEUR de l'écran (loin du bord le plus proche)
+                    const extendRight = (o.corner === 'tl') !== lefty;   // v35 : généralise le miroir gaucher (v34)
+                    l.style.left = x + 'px';
+                    l.style.top = (y + (acc ? 33 : 32)) + 'px';   // v33 : plus bas en Accessibilité (picto 56 px — v38)
+                    l.style.transform = extendRight ? 'none' : 'translateX(-100%)';
+                    l.style.textAlign = extendRight ? 'left' : 'right';
+                  }
+                  wheel.appendChild(l);
+                }
+                return { x, y, el: b };
+              });
+              // Borne l'arc à l'écran : jamais de picto coupé à gauche ni à droite
+              let minX = Infinity, maxX = -Infinity;
+              pos.forEach(p => { const half = acc ? 47 : 45; minX = Math.min(minX, p.x - half); maxX = Math.max(maxX, p.x + half); });   // v33 : marge élargie en Accessibilité (pictos 56 px — v38)
+              let shift = 0;
+              if (cx0 + minX < 10) shift = 10 - (cx0 + minX);
+              if (cx0 + maxX + shift > window.innerWidth - 10) shift = window.innerWidth - 10 - (cx0 + maxX);
+              origin = { x: cx0 + shift, y: cy0 };
+              wheel.style.left = origin.x + 'px';
+              wheel.style.top = origin.y + 'px';
+              document.body.appendChild(wheel);
+              void wheel.offsetWidth;   // reflow → animation d'entrée des pictos
+              wheel.classList.add('visible');
+              labelTimer = setTimeout(() => {
+                if (wheel) wheel.classList.add('labels');   // appui maintenu ~2 s = libellés
+              }, 2000);
+              activeAnchor = { forceClose };
+              vibrate(HAPTIC.strong);   // v47 : OUVERTURE de la roue = 1 vibration FORTE — l'appui long tient bon, l'action secondaire (la roue) est engagée
+            }, WHEEL_OPEN_MS);
+          }, { passive: false });
+
+          btn.addEventListener('touchmove', (e) => {
+            e.stopPropagation();
+            if (wheel) {
+              e.preventDefault();
+              const t = e.touches[0];
+              const fx = t.clientX - origin.x;
+              const fy = t.clientY - origin.y;
+              if (Math.hypot(fx, fy) > 55) movedOut = true;   // v44 : le doigt s'est écarté de l'ancre (> 55 px) — son relâchement ne déclenchera PAS le raccourci : c'est un glisser (sélection… ou annulation en sortant de l'arc)
+              const accNow = document.body.classList.contains('access');   // v36 : acc était déclaré dans le callback d'OUVERTURE (autre closure) — ReferenceError à CHAQUE survol depuis v33 : plus aucun tick haptique, surlignage ni action dans les roues
+              let best = -1, bestD = 1e9;
+              pos.forEach((p, i) => { const d = Math.hypot(p.x - fx, p.y - fy); if (d < bestD) { bestD = d; best = i; } });
+              if (best >= 0 && bestD < (accNow ? 62 : 60) && activeIdx !== best) {          // secteur survolé (v33 : capture élargie en Accessibilité)
+                activeIdx = best;
+                picked = items[best];
+                stopHold();                                                // on quitte un éventuel secteur "hold"
+                startHold(picked);                                         // ... et on arme celui du nouveau secteur
+                pos.forEach((p, i) => p.el.classList.toggle('active', i === best));
+                vibrate(HAPTIC.short);                                                // v47 : PASSAGE sur chaque pictogramme = 1 vibration courte
+              } else if ((best < 0 || bestD >= (accNow ? 62 : 60)) && activeIdx !== -1) {   // sortie de roue — v36 : même seuil qu'à l'entrée (avant : flicker 60-76 px en Accessibilité)
+                activeIdx = -1;
+                picked = null;
+                stopHold();                                                // doigt sorti → stoppe la répétition
+                pos.forEach(p => p.el.classList.remove('active'));
+              }
+            } else if (timer) {   // le doigt bouge avant l'ouverture → annulé (c'était un glisser)
+              clearTimeout(timer);
+              reset();
+            }
+          }, { passive: false });
+
+          btn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+            if (wheel) {
+              if (picked) {
+                if (!heldFired) { onPick(picked.id); vibrate(HAPTIC.short); rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY, true); }   // v47 : relâchement sur le picto choisi = 1 vibration COURTE (sélection de l'action principale du picto) — avant : forte, mais AUCUNE vibration ne partait (bug touchend : vibrate() supprimé dans le handler) · v49 F : l'onde lumineuse part DU picto choisi (lie cause et effet), remplaçant le halo générique
+                else vibrate(HAPTIC.tick);   // v38 : fin de hold — confirme l'arrêt de la répétition (avant : silence total au relâchement d'un secteur hold) · v47
+              } else if (o.onLongRelease && !movedOut) {
+                o.onLongRelease();   // v44 : roue ouverte puis relâchée SUR PLACE = raccourci dédié de l'ancre (⊞ vue des tâches, ⚙ Paramètres, loupe réglages rapides) — l'annulation reste possible : glisser hors de l'arc puis relâcher
+                vibrate(HAPTIC.short);   // v47 : relâchement long = 1 vibration COURTE (l'action secondaire du picto est validée) — la vibration FORTE a eu lieu à l'OUVERTURE de la roue
+                halo(true);   // v45 : relâché long → halo intense
+                if (o.longLabel) showToast(o.longLabel);   // v49 G : le toast dit QUELLE action est partie, pas seulement qu'une action est partie
+              }
+              forceClose();
+            } else if (timer) {   // appui court = action prédite par l'ancre
+              clearTimeout(timer);
+              reset();
+              onShort();
+              halo(false);   // v45 : toute validation d'appui court → halo léger, quel que soit le bouton (centralisé ici, pas dans chaque onShort)
+            }
+          }, { passive: false });
+
+          btn.addEventListener('touchcancel', forceClose, { passive: false });
+}
+
+// --- Ancre presse-papiers : picto copie par défaut, presse-papiers coché après copier/couper ---
+let clipHasContent = false;
+
+function setClipAnchor(has) {
+          clipHasContent = has;
+          document.getElementById('clip-btn').innerHTML = has ? ICONS.pastefull : ICONS.copy;
+}
+
+function clipPick(id) {
+          if (!connected) return;
+          ws.send('c' + id);
+          if (id === 'copy' || id === 'cut') setClipAnchor(true);   // logique presse-papiers :
+          else if (id === 'paste') setClipAnchor(false);           // après un coller, on recopie
+}
+
+makeWheelAnchor('clip-btn',
+          () => {
+            // Groupe presse-papiers uniquement (annuler/rétablir/tout sélectionner
+            // sont dans la roue ⌨, le thème dans la roue ⚙). L'action portée
+            // par l'ancre n'est PAS dupliquée dans l'arc.
+            const base = [
+              { id: 'copy',  icon: ICONS.copy,  label: 'Copier (Ctrl+C)' },   // libellé au même format que le menu Clavier (v24)
+              { id: 'cut',   icon: ICONS.cut,   label: 'Couper (Ctrl+X)' },
+              { id: 'paste', icon: ICONS.paste, label: 'Coller (Ctrl+V)' },
+            ];
+            return base.filter(it => it.id !== (clipHasContent ? 'paste' : 'copy'));
+          },
+          clipPick,
+          () => {   // appui court = action prédite par l'ancre (coller si presse-papiers plein)
+            if (!connected) return;
+            if (clipHasContent) { ws.send('cpaste'); setClipAnchor(false); vibrate(HAPTIC.short); }   // v46 : validation d'appui court · v47
+            else { ws.send('ccopy'); setClipAnchor(true); vibrate(HAPTIC.short); }   // copier → l'ancre devient Coller · v46
+          },
+          { corner: 'bl', lblDx: 28 }   // ancre d'ANGLE bas-gauche (v23) : demi arc montant vers le centre — v43 : 1er picto à la verticale, forme miroir de ⚙, libellés en haut à DROITE des pictos
+);
+
+// --- Ancre média : appui court = play/pause, appui long = roue ---
+// L'ancre EST play/pause : pas de doublon dans l'arc. Le muet vit désormais
+// sur l'ancre volume (appui court). Les flèches se maintiennent = répétition 1 s.
+makeWheelAnchor('media-btn',
+          () => [   // l'index 0 part du bout DROIT de l'arc → rendu de gauche à droite : ⏮ · ⏪ · ⏩ · ⏭
+            { id: 'next',     icon: ICONS.next,     label: `Piste
+suivante` },   // v27 : 2 lignes, comme ⏭
+            { id: 'right',    icon: ICONS.seekfwd,  label: 'Avancer (→)', hold: true },   // seek bande son : srv-v14.3 ; maintien = seek répété (v22)
+            { id: 'left',     icon: ICONS.seekback, label: 'Reculer (←)', hold: true },
+            { id: 'prev',     icon: ICONS.prev,     label: `Piste
+précédente` },   // v27 : 2 lignes, comme ⏭
+          ],
+          (id) => { if (connected) { ws.send({ prev: 'r', left: 'cleft', right: 'cright', next: 'n' }[id]); } },
+          () => { if (connected) { ws.send('p'); vibrate(HAPTIC.short); } }   // v46 : validation d'appui court · v47
+);
+
+// --- Ancre clavier : appui court = afficher/masquer, appui long = roue édition ---
+// Raccourcis d'édition uniquement (⇄ Alt+Tab vit dans l'arc onglets du titre).
+makeWheelAnchor('kbd-btn',
+          () => [
+            { id: 'undo',   icon: ICONS.undo,   label: 'Annuler (Ctrl+Z)' },
+            { id: 'redo',   icon: ICONS.redo,   label: 'Rétablir (Ctrl+Y)' },
+            { id: 'all',    icon: ICONS.all,    label: 'Tout sélectionner (Ctrl+A)' },
+          ],
+          (id) => { if (connected) { ws.send('c' + id); } },   // v47 : l'haptique de pick vit dans le moteur (HAPTIC.short au relâchement, HAPTIC.short au passage, HAPTIC.strong à l'ouverture) — le doublon interne était annulé instantanément
+          () => { toggleKeyboard(); vibrate(HAPTIC.short); },   // v46 : validation d'appui court · v47
+          { corner: 'br', lblDx: -28 }   // ancre d'ANGLE bas-droit (v23) : demi arc montant vers le centre — v43 : 1er picto à la verticale, forme miroir de ⚙, libellés en haut à GAUCHE des pictos
+);
+
+// --- Sensibilité du trackpad : fader persistant (localStorage) ---
+const SENS_MIN = 0.4, SENS_MAX = 1.8;
+let sensFactor = Math.max(SENS_MIN, Math.min(SENS_MAX, parseFloat(localStorage.getItem('sens') || '1') || 1));
+let sensPos = ((sensFactor - 1) / 0.7) * 100;
+const sensFader = document.getElementById('sens-fader');
+const sensKnob = document.getElementById('sens-knob');
+let sensHideTimer = null, sensActive = false;
+
+function sensKnobUpdate() {
+          sensKnob.style.transform = 'translateX(' + (sensPos * 0.7) + 'px)';
+}
+
+function openSensFader() {
+          placeFader(sensFader, document.getElementById('tool-btn'));
+          sensKnobUpdate();
+          sensFader.classList.add('visible');
+          if (sensHideTimer) { clearTimeout(sensHideTimer); sensHideTimer = null; }
+}
+
+sensFader.addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (sensHideTimer) { clearTimeout(sensHideTimer); sensHideTimer = null; }
+          sensActive = true;
+          sensFader.dataset.lastX = e.touches[0].clientX;
+}, { passive: false });
+
+sensFader.addEventListener('touchmove', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (!sensActive) return;
+          const x = e.touches[0].clientX;
+          const dx = x - parseFloat(sensFader.dataset.lastX);
+          sensFader.dataset.lastX = x;
+          sensPos = Math.max(-100, Math.min(100, sensPos + dx));
+          sensFactor = Math.max(SENS_MIN, Math.min(SENS_MAX, 1 + (sensPos / 100) * 0.7));
+          localStorage.setItem('sens', sensFactor.toFixed(2));
+          sensKnobUpdate();
+}, { passive: false });
+
+sensFader.addEventListener('touchend', () => {
+          sensActive = false;
+          sensHideTimer = setTimeout(() => sensFader.classList.remove('visible'), 2500);
+}, { passive: false });
+
+// --- Ancre outils : roue des réglages (v35 : 3 items — l'accessibilité a sa
+// propre roue à GAUCHE, ce menu redevient lisible et léger) ---
+function toolPick(id) {
+          if (id === 'sens') { openSensFader(); return; }           // réglage local
+          if (id === 'scroll') {                                    // inversion du défilement 2 doigts (persistante)
+            scrollInvert = !scrollInvert;
+            localStorage.setItem('scrollinv', scrollInvert ? '1' : '0');
+            // v47 : plus de vibration interne — le moteur de roue valide le pick (courte au relâchement)
+            return;
+          }
+          if (id === 'vib') {                                       // v34 : vibrations désactivables (persistant)
+            vibEnabled = !vibEnabled;
+            localStorage.setItem('vib', vibEnabled ? '1' : '0');
+            // v46 : plus de vibration interne — le moteur valide le pick : silencieuse si on vient de couper, forte si on vient de réactiver
+            return;
+          }
+          if (id === 'hapt') {                                      // v49 A : intensité haptique (persistant) — cycle subtile → standard → renforcée
+            hapticGain = (hapticGain + 1) % HAPTIC_GAINS.length;
+            localStorage.setItem('hapticgain', String(hapticGain));
+            showToast('Haptique ' + HAPTIC_GAIN_NAMES[hapticGain]);   // v49 G : le niveau atteint s'affiche — le picto ne changerait pas d'aspect
+            return;
+          }
+}
+
+makeWheelAnchor('tool-btn',
+          () => [
+            { id: 'sens',   icon: ICONS.sens,   label: 'Sensibilité' },   // v37 : raccourci (avant « Sensibilité du Trackpad ») — max-content (v31) garantit qu'elle ne peut plus se couper
+            { id: 'scroll', icon: ICONS.scroll, label: scrollInvert ? 'Défilement inversé' : 'Défilement naturel' },   // v35 : libellé essentiel — l'état suffit, « toucher pour… » était évident et trop long
+            { id: 'vib',    icon: ICONS.vibrate, label: vibEnabled ? 'Vibrations actives' : 'Vibrations coupées' },   // v35 : libellé essentiel
+            { id: 'hapt',   icon: ICONS.vibrate, label: 'Intensité : ' + HAPTIC_GAIN_NAMES[hapticGain] },   // v49 A : cycle subtile/standard/renforcée — le niveau courant se lit au libellé, le suivant s'annonce en toast
+          ],
+          toolPick,
+          () => { if (connected) { ws.send('cparams'); vibrate(HAPTIC.short); } },   // v46 : validation d'appui court · v47 · v44 : appui court = Paramètres Windows (Win+I, srv-v14.8) — Win+A (réglages rapides) déménage sur le relâché long de la loupe
+          { corner: 'tr', onLongRelease: () => { if (connected) ws.send('cparams'); }, longLabel: 'Paramètres Windows (Win+I)' }   // v49 G : toast du nom de l'action · v44 : relâché sur place = Paramètres (Win+I), même destination que l'appui court · ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
+);
+
+// --- v35 : Ancre Accessibilité (haut GAUCHE) — roue dédiée : dark/light mode, mode
+// miroir, aperçu, tutoriel (v38 : libellés choisis par l'utilisateur). Appui court =
+// grossissement direct (comportement historique du
+// bouton loupe). v37 : l'item « Grossissement » est RETIRÉ de la roue — doublon du
+// picto de l'ancre, qui fait déjà le grossissement en appui court. Désencombre la
+// roue Outils, équilibre les deux demi-arcs. ---
+function accessPick(id) {
+          if (id === 'theme') { toggleTheme(); return; }              // action locale
+          if (id === 'lefty') {                                       // mode gaucher — miroir complet (persistant)
+            lefty = !lefty;
+            localStorage.setItem('lefty', lefty ? '1' : '0');
+            document.body.classList.toggle('lefty', lefty);
+            // v47 : plus de vibration interne — le moteur de roue valide le pick (courte au relâchement)
+            return;
+          }
+          if (id === 'help') { showOnboarding(); return; }
+          if (connected && id === 'view') ws.send('g');
+}
+
+makeWheelAnchor('access-btn',
+          () => [
+            { id: 'theme', icon: ICONS.theme,  label: 'Dark/light mode' },   // v38 : libellés choisis par l'utilisateur
+            { id: 'lefty', icon: ICONS.swap,   label: lefty ? 'Mode miroir actif' : 'Mode miroir' },
+            { id: 'view',  icon: ICONS.view,   label: 'Aperçu de l’écran' },
+            { id: 'help',  icon: ICONS.help,   label: 'Tutoriel' },
+          ],
+          accessPick,
+          () => {   // appui court : grossissement direct (persistant, comme avant la v35)
+            localStorage.setItem('access', localStorage.getItem('access') === '1' ? '0' : '1');
+            applyAccessMode();
+            vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47
+          },
+          { corner: 'tl', onLongRelease: () => { if (connected) ws.send('csettings'); }, longLabel: 'Réglages rapides Windows (Win+A)' }   // v49 G : toast du nom de l'action · v44 : relâché sur place = réglages rapides Windows (Win+A) — l'action déménage de l'appui court de ⚙ · v35 : ancre d'angle haut-GAUCHE — demi arc descendant vers le bas-droite
+);
+
+// --- Ancre extinction : appui court = Menu Démarrer, roue = éteindre/redémarrer/veille ---
+// Confirmation obligatoire : jamais d'extinction par misclic.
+const confirmOverlay = document.getElementById('confirm-overlay');
+let confirmAction = null;
+
+function askConfirm(label, action) {
+          document.getElementById('confirm-text').textContent = label;
+          confirmAction = action;
+          confirmOverlay.classList.add('visible');
+}
+document.getElementById('confirm-no').addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          confirmOverlay.classList.remove('visible');
+          vibrate(HAPTIC.tick);   // v46 : annulation — information · v47 · v40 : annulation confirmée par une vibration légère
+          halo(false);   // v45 : halo léger — feedback visible même derrière l'overlay estompé
+          confirmAction = null;
+}, { passive: false });
+document.getElementById('confirm-yes').addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          confirmOverlay.classList.remove('visible');
+          vibrate(HAPTIC.short);   // v46 : validation d'appui court · v47 · v40 : la validation vibre AU TAP — l'action exécutée n'a plus à vibrer (un 2e appel immédiat annule de toute façon le 1er, per spec vibrate)
+          halo(false);   // v45 : halo léger — l'action système elle-même confirme à son exécution
+          if (confirmAction) { confirmAction(); confirmAction = null; }
+}, { passive: false });
+
+makeWheelAnchor('power-btn',
+          () => [
+            { id: 'off',    icon: ICONS.power,  label: 'Éteindre' },
+            { id: 'reboot', icon: ICONS.reboot, label: 'Redémarrer' },
+            { id: 'sleep',  icon: ICONS.sleep,  label: 'Mode veille' },
+          ],
+          (id) => {
+            const labels = { off: 'Éteindre le PC ?', reboot: 'Redémarrer le PC ?', sleep: 'Mettre le PC en veille ?' };
+            askConfirm(labels[id], () => { if (connected) { ws.send('x' + id); } });   // v40 : l'haptique de validation vit sur le bouton Confirmer (20 ms)
+          },
+          () => { if (connected) { ws.send('cwinkey'); vibrate(HAPTIC.short); } },   // v46 : validation d'appui court · v47
+          { corner: 'tr', onLongRelease: () => { if (connected) ws.send('cwintab'); }, longLabel: 'Vue des tâches (Win+Tab)' }   // v49 G : toast du nom de l'action · v44 : relâché sur place = vue des tâches (Win+Tab, srv-v14.8) — l'extinction reste par glisser dans la roue · ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
+);
+
+// --- Aperçu de l'écran du PC (tap n'importe où pour fermer) ---
+const previewOverlay = document.getElementById('preview-overlay');
+previewOverlay.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          previewOverlay.classList.remove('visible');
+}, { passive: false });
+
+function showPreview(b64) {
+          document.getElementById('preview-img').src = 'data:image/jpeg;base64,' + b64;
+          previewOverlay.classList.add('visible');
+          vibrate(HAPTIC.short);   // v46 : validation — l'aperçu est à l'écran · v47
+}
+
+// --- Onglets navigateur : ◀ ▶ autour du titre de la fenêtre active ---
+// ← → = page précédente/suivante (Alt+flèches, navigation web) ;
+// ◀ ▶ = onglet précédent/suivant (Ctrl+Tab / Ctrl+Maj+Tab).
+document.getElementById('page-prev').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('cback'); vibrate(HAPTIC.short); }   // v46 : validation d'appui court · v47
+          halo(false);   // v45 : halo léger — appui court validé
+}, { passive: false });
+document.getElementById('page-next').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('cfwd'); vibrate(HAPTIC.short); }   // v46 · v47
+          halo(false);   // v45
+}, { passive: false });
+document.getElementById('nav-prev').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('ctabprev'); vibrate(HAPTIC.short); }   // v46 · v47
+          halo(false);   // v45
+}, { passive: false });
+// Effet lumineux du titre à l'appui (retour perceptible du doigt — v22)
+const windowTitleEl = document.getElementById('window-title');
+windowTitleEl.addEventListener('touchstart', () => {
+          windowTitleEl.classList.add('glow');
+          setTimeout(() => windowTitleEl.classList.remove('glow'), 450);
+}, { passive: true });
+document.getElementById('nav-next').addEventListener('touchstart', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (connected) { ws.send('ctabnext'); vibrate(HAPTIC.short); }   // v46 · v47
+          halo(false);   // v45
+}, { passive: false });
+
+// --- Ancre titre : appui long = roue de gestion des onglets & fenêtres ---
+// La barre étant désormais AU-DESSUS des ancres d'action (bas d'écran),
+// l'arc s'ouvre VERS LE HAUT, symétrique autour du centre : Fermer (Ctrl+W)
+// à gauche · Réouvrir le dernier fermé (Ctrl+Maj+T) au centre ·
+// Fenêtre précédente (Alt+Tab) en bout DROIT.
+// Annuler = relâcher hors de l'arc, comme pour toutes les roues.
+makeWheelAnchor('window-title',
+          () => [   // index 0 = bout GAUCHE de l'arc (spread2) : ✖ Fermer à gauche · ↺ au centre · ⇄ en bout DROIT (v20)
+            { id: 'closetab', icon: ICONS.closetab, label: 'Fermer l\u2019onglet\n(Ctrl+W)' },   // "\n" explicite : la commande passe à la ligne (v24)
+            { id: 'reopen',   icon: ICONS.reopen,   label: 'Réouvrir l\u2019onglet\n(Ctrl+Maj+T)' },
+            { id: 'alttab',   icon: ICONS.alttab,   label: 'Fenêtre précédente\n(Alt+Tab)' },
+          ],
+          (id) => { if (connected) ws.send('c' + id); },
+          () => {}           // pas d'action courte sur le titre
+);
+
+// --- v44 : ancre titre de l'application (h1 « RemotePad ») — maintien puis
+// relâchement = Explorateur de fichiers (Win+E, srv-v14.8). Pas de roue ici :
+// une seule action ; le seuil est le même que l'ouverture des roues (380 ms),
+// tick discret au franchissement du seuil, double vibration à l'exécution. ---
+const appTitleEl = document.getElementById('app-title');
+(function () {
+          let t = null, armed = false, sx = 0, sy = 0;
+          const cancel = () => { if (t) clearTimeout(t); t = null; armed = false; hideHoldRing(); };   // v49 E : annulation → jamais d'anneau orphelin
+          appTitleEl.addEventListener('touchstart', (e) => {
+            e.preventDefault();   // un appui long sur du texte ne doit ni le sélectionner ni ouvrir un menu contextuel
+            cancel();
+            sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+            showHoldRing(sx, sy, WHEEL_OPEN_MS);   // v49 E : l'anneau se remplit pendant le seuil du titre — on voit quand l'explorateur va s'armer
+            t = setTimeout(() => { armed = true; hideHoldRing(); vibrate(HAPTIC.strong); }, WHEEL_OPEN_MS);   // v47 : seuil franchi = 1 vibration FORTE (l'action secondaire est engagée) · v49 E : anneau levé au seuil · v44 : même seuil que les roues — le buzz dit « relâchez »
+          }, { passive: false });
+          appTitleEl.addEventListener('touchmove', (e) => {
+            if (Math.hypot(e.touches[0].clientX - sx, e.touches[0].clientY - sy) > 15) cancel();   // v44 : jitter toléré (15 px) — un vrai glisser annule
+          }, { passive: true });
+          appTitleEl.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const was = armed;
+            cancel();
+            if (was && connected) { ws.send('cexplorer'); vibrate(HAPTIC.short); halo(true); showToast('Explorateur de fichiers (Win+E)'); }   // v47 : 1 vibration COURTE au relâchement (l'action est validée — la FORTE a eu lieu au seuil) · v49 G : toast du nom de l'action · v45 : halo intense
           }, { passive: false });
           appTitleEl.addEventListener('touchcancel', cancel, { passive: true });
 })();
