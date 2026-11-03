@@ -20,7 +20,10 @@ Résumé des fonctionnalités :
 - Aperçu écran : capture (mss) → JPEG (Pillow) → base64, envoyé sur
   demande au client concerné (jamais en continu).
 - Latence : ping/pong (uniquement après authentification).
-- HTTP : page d'accueil avec QR, /client (no-store), /qr.
+- HTTP : page d'accueil avec QR, /client (no-store), /qr — serveur
+  multi-threadé, une requête par appareil en parallèle.
+- Multi-appareils : décompte d'appareils actifs diffusé à chaque écran
+  (« N appareils actifs », srv-v14.6).
 """
 import asyncio
 import secrets
@@ -30,12 +33,12 @@ import subprocess
 import time
 import webbrowser
 import qrcode
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler   # srv-v14.6 : HTTP multi-thread — l'ancien HTTPServer ne servait qu'UNE requête à la fois
 import threading
 import os
 
 CODE = "".join(secrets.choice(string.digits) for _ in range(6))
-SERVER_VERSION = "srv-v14.5"
+SERVER_VERSION = "srv-v14.6"
 MAX_ATTEMPTS = 3        # échecs cumulés PAR IP (fenêtre FAIL_WINDOW) avant ban
 BAN_SECONDS = 30        # durée du 1er ban — doublée à chaque récidive
 FAIL_WINDOW = 600       # fenêtre de cumul des échecs : 10 min
@@ -94,6 +97,12 @@ def cleanup_security_state():
         del banned[ip]
     for ip in [ip for ip, lst in failures.items() if all(now - t >= FAIL_WINDOW for t in lst)]:
         del failures[ip]
+        # srv-v14.6 : les récidives suivent les échecs — sans ce pop, une IP
+        # qui avait un jour échoué gardait ses strikes pour toujours (ban
+        # exponentiel de plus en plus sévère + fuite mémoire lente) : la
+        # promesse « une IP sage pendant FAIL_WINDOW repart de zéro »
+        # n'était pas tenue pour les strikes.
+        strikes.pop(ip, None)
 authorized = set()   # clients authentifiés (pour diffuser le titre de fenêtre)
 
 # Marqueur posé dans dwExtraInfo de TOUS nos SendInput : distinguait nos
@@ -482,6 +491,22 @@ def client_ip(websocket):
         return "?"
 
 
+async def broadcast_device_count():
+    """srv-v14.6 : annonce le décompte d'appareils actifs à chaque écran.
+
+    Appelée à chaque appairage réussi et à chaque déconnexion authentifiée :
+    le client affiche « N appareils actifs » dès N > 1 (v33 côté client —
+    l'affichage était mort depuis sa création, le serveur ne lui envoyait
+    jamais n<N>).
+    """
+    n = len(authorized)
+    for client in list(authorized):
+        try:
+            await client.send(f"n{n}")
+        except Exception:
+            authorized.discard(client)
+
+
 async def handler(websocket):
     ip = client_ip(websocket)
     purge_expired()   # srv-v14.4 : ban/échecs/récidives périmés ne s'accumulent plus
@@ -520,6 +545,7 @@ async def handler(websocket):
                     print(f"[RemotePad] {n} bouton(s) encore enfoncé(s) relâché(s)" if n
                           else "[RemotePad] Aucun bouton enfoncé — rien à relâcher")
                     await websocket.send("w" + get_active_window_title())
+                    await broadcast_device_count()   # srv-v14.6 : « N appareils actifs » sur chaque écran, le nouveau compris
                 else:
                     # Échec : cumul PAR IP (fenêtre glissante) — répartir
                     # les essais sur plusieurs connexions ne contourne
@@ -638,9 +664,12 @@ async def handler(websocket):
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
+        was_auth = websocket in authorized
         authorized.discard(websocket)
         release_all_buttons(websocket)   # srv-v14.4 : SES boutons relâchés — les autres connexions ne sont pas perturbées
         print(f"[RemotePad] Client {ip} déconnecté")
+        if was_auth:   # srv-v14.6 : le décompte affiché ne change qu'à la perte d'un appareil authentifié
+            await broadcast_device_count()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -721,7 +750,10 @@ h1 {{ font-weight:600; letter-spacing:-0.03em; font-size:2.2rem; margin-bottom:6
         self.wfile.write(body)
 
 
-httpd = HTTPServer((HOST, HTTP_PORT), Handler)
+# srv-v14.6 : ThreadingHTTPServer — l'ancien HTTPServer ne servait qu'UNE
+# requête à la fois : un second appareil (téléphone + tablette) se retrouvait
+# sérialisé derrière le premier, et une connexion figée en bloquait d'autres.
+httpd = ThreadingHTTPServer((HOST, HTTP_PORT), Handler)
 threading.Thread(target=httpd.serve_forever, daemon=True).start()
 print(f"[RemotePad] HTTP démarré sur http://{host_ip}:{HTTP_PORT}/  (QR, /client)")
 

@@ -154,13 +154,14 @@
 
         .nav-arrow {
             flex: 0 0 auto;
-            /* v26 : zone tactile élargie (audit P2) */
+            /* v26 : zone tactile élargie (audit P2) · v40 : hauteur 36→40 px —
+               les flèches ◀ ▶ ← → gagnent en perceptibilité (retour utilisateur) */
             width: 44px;
-            height: 36px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.62rem;
+            font-size: 0.7rem;
             color: var(--fg-muted);
             border-radius: 8px;
             transition: background 0.15s, transform 0.05s;
@@ -279,7 +280,8 @@
         body.access .hdr-btn svg { width: 21px; height: 21px; }
         body.access .action-bar .hdr-btn { width: 68px; height: 46px; font-size: 1.25rem; border-radius: 12px; }
         body.access .action-bar .hdr-btn svg { width: 28px; height: 28px; }
-        body.access .nav-arrow { width: 46px; height: 40px; }
+        body.access .nav-arrow { width: 46px; height: 44px; }
+        body.access .nav-arrow svg { width: 21px; height: 21px; }   /* v40 : flèches agrandies aussi en Accessibilité */
         /* v35 : en mode Grossissement, le titre d'onglet passe sur 2 LIGNES
            (clamp webkit) — mieux perceptible, plus de troncature aveugle. */
         body.access .window-title {
@@ -710,8 +712,10 @@
         }
 
         .nav-arrow svg {
-            width: 12px;
-            height: 12px;
+            /* v40 : pictos 12→17 px — à 12 px dans une cible de 44 px,
+               les flèches étaient trop peu perceptibles */
+            width: 17px;
+            height: 17px;
         }
 
         .wheel-lbl {
@@ -838,7 +842,7 @@
                 <div class="hdr-btn" id="power-btn" role="button" aria-label="Menu Démarrer — appui long : éteindre, redémarrer, veille" title="Menu Démarrer — appui court, appui long = roue extinction"></div>
                 <div class="hdr-btn" id="tool-btn" role="button" aria-label="Outils — appui court : réglages rapides, appui long : sensibilité, défilement, vibrations" title="Réglages rapides — appui court, appui long = roue outils"></div>
             </div>
-            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v38</span></h1>
+            <h1>RemotePad<span style="font-size:0.6rem;color:var(--fg-muted);font-weight:400;margin-left:6px;letter-spacing:0;" id="ver">v40</span></h1>
         </div>
         <div class="track-area" id="track-area">
             <canvas id="trackpad-canvas"></canvas>
@@ -903,12 +907,13 @@
 const UPDATE_RATE = 30; // Hz — throttle réseau
 const SENSITIVITY = 1.8;
 const ACCEL_CURVE = [[0,0],[87,1],[173,1],[553,2],[900,3]];
-const TAP_MS = 250;              // fenêtre du tap 2 doigts (clic droit)
+const TAP_MS_2F = 350;           // v39 : fenêtre du tap 2 doigts élargie (250 ms perdaient des taps — poser 2 doigts prend plus de temps qu'1)
 const TAP_MOVE_THRESHOLD = 12;
 const DOUBLE_TAP_MS = 400;      // fenêtre du double-tap / tap-tap-glisser
 const LONG_PRESS_MS = 750;       // au-delà, contact immobile = clic droit / drag
 
 let ws = null; let connected = false;
+let codeRefused = false;         // v39 : code du hash refusé — plus AUCUNE reconnexion auto (un code périmé ne peut pas « revenir » ; seule la page re-scannée repart)
 let reconnectDelay = 3000;
 let wakeLock = null;
 let pingTimer = null;
@@ -939,11 +944,13 @@ let isLongPress = false;
 let isDragging = false;
 let dragFromTap = false;         // tap-tap-glisser en cours (sélection de texte)
 let dragTapStarted = false;      // bouton gauche enfoncé lors du tap-tap-glisser ?
+let leftHeld = false;            // v39 : bouton gauche actuellement MAINTENU par un geste (drag) — garantit qu'aucun gauche ne reste coincé
 let lastTapTime = 0;
 let lastTapX = 0, lastTapY = 0;  // position du tap précédent (condition de proximité du double-tap)
 let lastScrollY = 0;
 let lastScrollX = 0;
 let twoFingerScroll = false;   // évite le saut de curseur 2→1 doigt
+let twoFingerActive = false;   // v39 : des 2 doigts sont posés — le tap 2 doigts se juge au DERNIER lever, pas à l'événement qui groupe les levers
 let gestureTouches = 0;
 let twoFingerStartTime = 0;
 let twoFingerDist = 0;
@@ -1035,6 +1042,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function connect() {
+          if (codeRefused) return;   // v39 : code refusé — attend le re-scan du QR (nouvelle page, nouveau hash)
           if (document.hidden) return;
           if (ws && ws.readyState <= 1) return; // une seule socket à la fois
           const host = window.location.hostname || 'localhost';
@@ -1048,7 +1056,7 @@ function connect() {
               // Appairage automatique : le token est dans le hash de l'URL (#CODE)
               const token = location.hash.slice(1);
               if (/^\d{6}$/.test(token)) {
-                ws.send('join:' + token + ':v38');
+                ws.send('join:' + token + ':v40');
               } else {
                 setStatus('Ouvrez RemotePad via le QR code affiché sur le PC', false);
               }
@@ -1063,6 +1071,12 @@ function connect() {
               if (!localStorage.getItem('onboarded')) showOnboarding();   // première connexion : le tutoriel (v27)
             } else if (d === 'error') {
               setStatus('Code refusé — rescannez le QR code', false);
+              // v39 : le code du hash est périmé (serveur relancé) — réessayer
+              // en boucle ne peut pas aboutir et accumule des échecs → ban
+              // surprise après 3 chutes de socket. On ferme et on suspend
+              // la reconnexion auto jusqu'au re-scan du QR.
+              codeRefused = true;
+              try { ws.close(); } catch (e) {}
             } else if (d === 'banned') {
               setStatus('Trop de tentatives — patientez avant de réessayer', false);
             } else if (d.slice(0, 1) === 'i') {
@@ -1091,6 +1105,7 @@ function connect() {
             stopPing();
             if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
             document.getElementById('track-area').classList.remove('active');
+            if (codeRefused) return;   // v39 : pas de reconnexion auto — « rescannez le QR » reste affiché
             setStatus('Déconnecté — reconnexion…', false);
             scheduleReconnect();
           };
@@ -1177,10 +1192,17 @@ canvas.addEventListener('touchstart', (e) => {
           gestureTouches = e.touches.length;
           if (e.touches.length === 2) {
             if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            // v39 : un drag était en cours (appui long ou tap-tap-glisser) ?
+            // Son bouton gauche est relâché CIBLÉ — l'ancien code annulait
+            // l'état sans b0;0 et Windows gardait le drag actif jusqu'au
+            // prochain tap.
+            if (leftHeld && connected) { ws.send('b0;0'); vibrate(10); }
+            leftHeld = false;
             isLongPress = false; isDragging = false;
             trackArea.classList.remove('dragging');   // v28 : 2e doigt = défilement, plus de drag
             touchMoved = true;
             twoFingerScroll = true;
+            twoFingerActive = true;    // v39 : phase 2 doigts armée — le tap se jugera au DERNIER lever
             twoFingerStartTime = performance.now();
             twoFingerDist = 0;
             const p1 = getTouch({touches: [e.touches[0]]});
@@ -1217,7 +1239,11 @@ canvas.addEventListener('touchstart', (e) => {
             if (touchMoved || touchMovedDistance >= 8) return;
             isLongPress = true;
             vibrate(15);
-            if (connected) ws.send('b0;1');   // bouton gauche enfoncé : drag OU clic droit
+            // v39 : plus de LEFTDOWN ici — un appui long immobile devient un
+            // clic droit PUR. L'ancien b0;1 ici + b0;0 au relâcher formait un
+            // vrai clic GAUCHE pour l'app (pause vidéo, suivi de lien…) juste
+            // avant le menu contextuel. Le gauche ne s'enfonce plus qu'au
+            // premier MOUVEMENT (drag), dans le touchmove.
           }, LONG_PRESS_MS);
 }, { passive: false });
 
@@ -1259,10 +1285,15 @@ canvas.addEventListener('touchmove', (e) => {
           const dist = Math.hypot(dx, dy);
           touchMovedDistance += dist;
           if (touchMovedDistance > TAP_MOVE_THRESHOLD) touchMoved = true;
-          if (isLongPress && touchMovedDistance > 8) isDragging = true;  // appui long + mouvement = drag
+          if (isLongPress && touchMovedDistance > 8 && !isDragging) {   // v39 : le gauche s'enfonce ICI, au 1er mouvement (et pas à 750 ms)
+            isDragging = true;   // appui long + mouvement = drag
+            leftHeld = true;
+            if (connected) ws.send('b0;1');
+          }
           if (dragFromTap && !dragTapStarted && touchMovedDistance > 4) {
             dragTapStarted = true;          // le 2e tap bouge : le drag démarre ici
             isDragging = true;
+            leftHeld = true;                 // v39 : suivi du gauche maintenu
             vibrate(10);
             if (connected) ws.send('b0;1');
           }
@@ -1290,15 +1321,25 @@ canvas.addEventListener('touchend', (e) => {
           const now = performance.now();
           const remaining = e.touches.length;
 
-          // --- Geste 2 doigts terminé : tap 2 doigts = clic droit ---
-          if (gestureTouches === 2 && remaining === 0) {
+          // --- Geste 2 doigts : le tap se juge au DERNIER lever (v39) ---
+          // Avant, le clic droit n'était émis que si les 2 doigts se levaient
+          // dans le MÊME événement touchend (gestureTouches===2 && remaining===0) :
+          // dès qu'un doigt se levait le premier, gestureTouches passait à 1 et
+          // le tap était perdu — sur les navigateurs qui livrent les levers en
+          // deux événements séparés, le clic droit 2 doigts ne marchait jamais.
+          if (twoFingerActive) {
+            if (remaining > 0) {   // 1er doigt levé : on attend le dernier
+              gestureTouches = remaining;
+              return;
+            }
+            twoFingerActive = false;
             twoFingerScroll = false;
             const twoFingerTap = twoFingerDist <= TAP_MOVE_THRESHOLD
-                               && (now - twoFingerStartTime) < TAP_MS;
+                               && (now - twoFingerStartTime) < TAP_MS_2F;
             twoFingerDist = 0;
             gestureTouches = 0;
             if (connected && twoFingerTap) {
-              vibrate(15);
+              vibrate(20);   // v40 : clic droit 15→20 ms — validation plus franche
               ws.send('b2;1'); ws.send('b2;0');
               clickFlash();   // v34 : micro-flash du clic droit 2 doigts
             }
@@ -1319,6 +1360,7 @@ canvas.addEventListener('touchend', (e) => {
           if (!connected) return;
           if (wasDragging) {
             ws.send('b0;0');                    // fin de drag (appui long OU tap-tap-glissé)
+            leftHeld = false;
           } else if (wasDragFromTap && !tapDragStarted) {
             // Tap-tap (ou tap-tap-tap) relevé sans bouger : UN clic réel par tap.
             // Le système CUMULE les clics : 2 = double-clic (mot), 3 = triple-clic
@@ -1330,8 +1372,10 @@ canvas.addEventListener('touchend', (e) => {
             vibrate(25);
             clickFlash();   // v34 : micro-flash du tap cumulé (double/triple clic)
           } else if (wasLongPress) {
-            ws.send('b0;0');                     // relâche le gauche enfoncé à LONG_PRESS_MS
+            // v39 : clic droit PUR — le gauche n'a jamais été enfoncé, aucun
+            // b0;0 à envoyer (jamais d'UP orphelin : la règle d'or du serveur)
             ws.send('b2;1'); ws.send('b2;0');    // clic droit atomique
+            vibrate(20);                         // v40 : clic droit appui long 15→20 ms — même validation franche que le 2 doigts
             clickFlash();                        // v34 : micro-flash du clic droit (appui long)
           } else if (touchMoved) {
             // mouvement simple : rien à relâcher
@@ -1358,8 +1402,10 @@ canvas.addEventListener('touchcancel', (e) => {
           twoFingerScroll = false;
           trackArea.classList.remove('dragging');   // v28 : contact annulé → trace neutre
           gestureTouches = 0;
+          twoFingerActive = false;   // v39 : la phase 2 doigts s'arrête net
           twoFingerDist = 0;
-          if (connected) ws.send('b0;0');        // libération inconditionnelle
+          if (leftHeld && connected) ws.send('b0;0');   // v39 : relâchement ciblé du gauche s'il est maintenu
+          leftHeld = false;
 }, { passive: false });
 
 // --- Barres de scroll (verticale à droite, horizontale en bas) ---
@@ -1524,6 +1570,7 @@ let volChanged = false;   // le doigt a-t-il ajusté le volume pendant ce contac
 let volMuted = false;     // état "muet" optimiste (géré par RemotePad, sans synchro COM serveur)
 let volDecayTimer = null;
 let volRepTimer = null;    // v38 : auto-répétition quand le doigt TIENT une borne de la jauge
+let volRepDir = 0;         // v40 : direction de l'auto-répétition ARMÉE (±1, 0 = aucune)
 
 function volStep(dir) {    // v38 : 1 cran de volume, partagé glissé / auto-répétition (démute comme Windows)
           if (connected) ws.send(dir > 0 ? 'v1' : 'v-1');
@@ -1531,9 +1578,17 @@ function volStep(dir) {    // v38 : 1 cran de volume, partagé glissé / auto-r�
           if (volMuted) { volMuted = false; updateVolIcon(); }
           vibrate(8);
 }
-function volRepClear() { if (volRepTimer) { clearTimeout(volRepTimer); volRepTimer = null; } }
-function volArmRepeat(dir) {   // v38 : borne tenue → le volume continue de baisser/monter tout seul (toutes les 300 ms après 600 ms d'immobilité) ; chaque touchmove REARME, donc tant que le doigt glisse ce sont les crans du glissé qui pilotent
+function volRepClear() { if (volRepTimer) { clearTimeout(volRepTimer); volRepTimer = null; } volRepDir = 0; }
+function volArmRepeat(dir) {
+          // v40 : l'armement ne se RECHARGE PLUS à chaque touchmove. Aucun doigt
+          // n'est parfaitement immobile : le jitter (±1-2 px) rechargeait le délai
+          // de 600 ms sans fin et la répétition ne partait JAMAIS en pratique.
+          // Désormais : déjà armé dans CE sens → le compte à rebours suit son
+          // cours ; seul un CRAN réellement glissé (voir touchmove) ou un
+          // changement de sens réarme — le glissé reste prioritaire.
+          if (volRepDir === dir) return;
           volRepClear();
+          volRepDir = dir;
           volRepTimer = setTimeout(function tick() {
             volStep(dir);
             volRepTimer = setTimeout(tick, 300);
@@ -1580,15 +1635,26 @@ volBtn.addEventListener('touchmove', (e) => {
           volLastX = x;
           volImpulse = Math.max(-100, Math.min(100, volImpulse + dx));
           volAccum += dx;
+          let glidedToward = 0;   // v40 : direction du dernier cran GLISSÉ pendant CE touchmove (±1, 0 = aucun)
           while (Math.abs(volAccum) >= 12) {   // 12 px de glissé = 1 cran de volume
             const dir = volAccum > 0 ? 1 : -1;
             volStep(dir);
             volAccum -= dir * 12;
+            glidedToward = dir;
           }
-          // v38 : borne de jauge atteinte — si le doigt TIENT, le volume continue
-          // de diminuer/augmenter tout seul (le glissé seul plafonnait à la jauge)
-          if (Math.abs(volImpulse) >= 100) volArmRepeat(volImpulse > 0 ? 1 : -1);
-          else volRepClear();
+          // v40 : zone d'extrême avec HYSTÉRÉSIS (±90, et non plus le seuil exact
+          // 100) — le jitter autour de la borne franchissait 100 dans les deux
+          // sens et désarmait/réarmait la répétition sans fin. Tenir la zone →
+          // auto-répétition (600 ms d'armement puis toutes les 300 ms) ; un cran
+          // glissé VERS la borne → réarmement complet (le glissé pilote) ; un cran
+          // glissé vers l'intérieur fait sortir de la zone au prochain touchmove.
+          if (volImpulse >= 90) {
+            if (glidedToward === 1) volRepClear();
+            volArmRepeat(1);
+          } else if (volImpulse <= -90) {
+            if (glidedToward === -1) volRepClear();
+            volArmRepeat(-1);
+          } else volRepClear();
           volKnobUpdate();
 }, { passive: false });
 
@@ -1695,6 +1761,7 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
             // heldFired restait à 1 et le test du touchend échouait.
             heldFired = 0;   // v33 : rien n'est tiré à l'entrée — la grâce décidera
             if (!item.hold) return;
+            vibrate(12);   // v40 : tick immédiat à la CAPTURE d'un secteur seek — le doigt sait qu'il est sur ⏪/⏩ avant même le premier cran (500 ms de grâce)
             holdTimer = setTimeout(() => {
               heldFired = 1;   // la répétition a tiré : le relâchement ne re-tirera pas
               onPick(item.id); vibrate(25);
@@ -1730,17 +1797,32 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
                 // Ancre d'ANGLE (v24) : l'arc se dirige vers l'ANGLE OPPOSÉ et ses
                 // pictos forment un demi arc sur la moitié INTÉRIEURE du cercle :
                 //   'tr' haut-droit → descendant vers le bas-gauche (90°→165°)
-                //   'br' bas-droit  → montant vers le haut-gauche (70°→145°)
+                //   'br' bas-droit  → montant vers le haut-gauche (90°→145°, v40)
                 //   'bl' bas-gauche → montant vers le haut-droite (90°→35°)
+                // v40 : les arcs du BAS balayent 55° DEPUIS LA VERTICALE, apex
+                // occupé par le 1er picto (90°) et pictos de bout à l'élévation
+                // 35° — LA HAUTEUR DES EXTRÊMES DU MENU MÉDIA. Le 'br' de la v38
+                // (90°→165°) faisait retomber le picto de bout à ~28 px de
+                // l'ancre : au niveau de la barre d'action, visuellement « enfoncé ».
                 // FORME CIRCULAIRE UNIFORME (v24) : les arcs d'angle balayent 75°
                 // comme ceux de ⊞/⚙ et partagent la même règle de rayon (92+6n).
                 // Les coins BAS sont INCLINÉS pour rester à la hauteur de l'arc
                 // audio (angles dans la bande 35–145°) : jamais de chevauchement
                 // de la barre d'action. Rayon adaptatif : pictos de 54 px → JAMAIS
                 // de chevauchement ; bornage conservé.
-                if (o.corner === 'bl') { a0 = 90; a1 = 35; }
-                else if (o.corner === 'br') {   // v38 : apex VERTICAL occupé (90°), puis éventail régulier — miroir exact du 'tr', comme les menus supérieurs. Avant (70→145), l'apex tombait ENTRE Annuler et Rétablir : arc visuellement « enfoncé » au niveau d'Annuler. Gaucher : l'arc part vers la DROITE (miroir du 'tl')
-                  a0 = 90; a1 = lefty ? 15 : 165;
+                if (o.corner === 'bl') {
+                  // v40 : miroir gaucher ajouté — en mode miroir l'ancre est à
+                  // DROITE de la barre, l'arc part vers la gauche (145°) ;
+                  // extrême à l'élévation 35°, hauteur du menu média.
+                  a0 = 90; a1 = lefty ? 145 : 35;
+                }
+                else if (o.corner === 'br') {
+                  // v40 : balayage 55° depuis la verticale — l'extrême de la v38
+                  // (165°) tombait à ~28 px de l'ancre, SOUS le niveau de la
+                  // barre d'action. Apex vertical conservé (90°, occupé par le
+                  // 1er picto), extrêmes à l'élévation 35° = hauteur du menu
+                  // média. Gaucher : miroir vers la droite (35°).
+                  a0 = 90; a1 = lefty ? 35 : 145;
                 }
                 else if (o.corner === 'tl') {   // v35 : ancre haut-GAUCHE (menu Accessibilité) — arc descendant vers le bas-DROITE, miroir exact du 'tr'
                   a0 = 90; a1 = lefty ? 165 : 15;
@@ -1749,6 +1831,10 @@ function makeWheelAnchor(btnId, getItems, onPick, onShort, opts) {
                 // v34 : mode gaucher — l'ancre d'angle est en haut à GAUCHE :
                 // l'arc descend vers le bas-DROITE (symétrique exact du mode droitier)
                 if (lefty && o.corner === 'tr') { a0 = 90; a1 = 15; }
+                // v40 : arcs du BAS ('bl', 'br') — rayon plancher d'un arc de 3
+                // items : les pictos de bout montent à la hauteur des extrêmes
+                // du menu média, plus jamais au niveau de la barre d'action.
+                if (o.corner === 'bl' || o.corner === 'br') R = Math.max(R, (92 + 18) * (acc ? 1.15 : 1));
                 R = Math.max(R, Math.ceil((acc ? 61 : 58) / ((Math.abs(a1 - a0) / Math.max(1, n - 1)) * Math.PI / 180)));   // v33 : 61 en Accessibilité (pictos 56 px — v38) · v35 : Math.abs — les arcs DESCENDANTS (tl, tr en gaucher) ont un balayage négatif, l'anti-chevauchement s'applique pareil
               } else if (n === 2) {
                 if (o.spread2) { a0 = 152; a1 = 28; }   // ancre titre : les 2 pictos de part et d'autre du centre
@@ -1906,7 +1992,7 @@ suivante` },   // v27 : 2 lignes, comme ⏭
 précédente` },   // v27 : 2 lignes, comme ⏭
           ],
           (id) => { if (connected) { ws.send({ prev: 'r', left: 'cleft', right: 'cright', next: 'n' }[id]); } },
-          () => { if (connected) { ws.send('p'); vibrate(10); } }
+          () => { if (connected) { ws.send('p'); vibrate(15); } }   // v40 : validation play/pause 10→15 ms
 );
 
 // --- Ancre clavier : appui court = afficher/masquer, appui long = roue édition ---
@@ -1990,7 +2076,7 @@ makeWheelAnchor('tool-btn',
             { id: 'vib',    icon: ICONS.vibrate, label: vibEnabled ? 'Vibrations actives' : 'Vibrations coupées' },   // v35 : libellé essentiel
           ],
           toolPick,
-          () => { if (connected) { ws.send('csettings'); vibrate(10); } },   // appui court = réglages rapides Windows (Win+A)
+          () => { if (connected) { ws.send('csettings'); vibrate(15); } },   // v40 : validation 10→15 ms — appui court = réglages rapides Windows (Win+A)
           { corner: 'tr' }   // ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
 );
 
@@ -2042,11 +2128,13 @@ function askConfirm(label, action) {
 document.getElementById('confirm-no').addEventListener('touchstart', (e) => {
           e.preventDefault();
           confirmOverlay.classList.remove('visible');
+          vibrate(10);   // v40 : annulation confirmée par une vibration légère
           confirmAction = null;
 }, { passive: false });
 document.getElementById('confirm-yes').addEventListener('touchstart', (e) => {
           e.preventDefault();
           confirmOverlay.classList.remove('visible');
+          vibrate(20);   // v40 : la validation vibre AU TAP — l'action exécutée n'a plus à vibrer (un 2e appel immédiat annule de toute façon le 1er, per spec vibrate)
           if (confirmAction) { confirmAction(); confirmAction = null; }
 }, { passive: false });
 
@@ -2058,9 +2146,9 @@ makeWheelAnchor('power-btn',
           ],
           (id) => {
             const labels = { off: 'Éteindre le PC ?', reboot: 'Redémarrer le PC ?', sleep: 'Mettre le PC en veille ?' };
-            askConfirm(labels[id], () => { if (connected) { ws.send('x' + id); vibrate(20); } });
+            askConfirm(labels[id], () => { if (connected) { ws.send('x' + id); } });   // v40 : l'haptique de validation vit sur le bouton Confirmer (20 ms)
           },
-          () => { if (connected) { ws.send('cwinkey'); vibrate(10); } },
+          () => { if (connected) { ws.send('cwinkey'); vibrate(15); } },   // v40 : validation 10→15 ms
           { corner: 'tr' }   // ancre d'angle haut-droit : demi arc descendant vers l'angle opposé (v20)
 );
 
@@ -2082,15 +2170,15 @@ function showPreview(b64) {
 // ◀ ▶ = onglet précédent/suivant (Ctrl+Tab / Ctrl+Maj+Tab).
 document.getElementById('page-prev').addEventListener('touchstart', (e) => {
           e.preventDefault(); e.stopPropagation();
-          if (connected) { ws.send('cback'); vibrate(10); }
+          if (connected) { ws.send('cback'); vibrate(15); }   // v40 : validation d'action 10→15 ms — plus perceptible
 }, { passive: false });
 document.getElementById('page-next').addEventListener('touchstart', (e) => {
           e.preventDefault(); e.stopPropagation();
-          if (connected) { ws.send('cfwd'); vibrate(10); }
+          if (connected) { ws.send('cfwd'); vibrate(15); }   // v40
 }, { passive: false });
 document.getElementById('nav-prev').addEventListener('touchstart', (e) => {
           e.preventDefault(); e.stopPropagation();
-          if (connected) { ws.send('ctabprev'); vibrate(10); }
+          if (connected) { ws.send('ctabprev'); vibrate(15); }   // v40
 }, { passive: false });
 // Effet lumineux du titre à l'appui (retour perceptible du doigt — v22)
 const windowTitleEl = document.getElementById('window-title');
@@ -2100,7 +2188,7 @@ windowTitleEl.addEventListener('touchstart', () => {
 }, { passive: true });
 document.getElementById('nav-next').addEventListener('touchstart', (e) => {
           e.preventDefault(); e.stopPropagation();
-          if (connected) { ws.send('ctabnext'); vibrate(10); }
+          if (connected) { ws.send('ctabnext'); vibrate(15); }   // v40
 }, { passive: false });
 
 // --- Ancre titre : appui long = roue de gestion des onglets & fenêtres ---
